@@ -282,7 +282,7 @@ struct Solver {
     std::vector<int> predict(const std::vector<std::vector<int>>& temperature) {
         std::vector<int> estimate(N);
         //int T = 10000 / N;
-        int T = 10;
+        int T = 30;
         for (int i_in = 0; i_in < N; i_in++) {
             // you can output comment
             std::cout << "# measure i=" << i_in << " y=0 x=0" << std::endl;

@@ -1,0 +1,13 @@
+.vs
+*.exe
+
+tools/in
+
+tools_win/in
+tools_win/out
+tools_win/err
+tools_win/submissions/*/out
+tools_win/submissions/*/err
+
+vs/*/bin
+vs/*/obj

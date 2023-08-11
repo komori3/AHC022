@@ -151,13 +151,13 @@ inline double get_temp(double stemp, double etemp, double t, double T) {
 
 constexpr int param_s_to_interval[31] = {
     -1,
-    3, 8, 8, 16, 16, 16, -1, -1, -1, -1,
+    3, 8, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 constexpr int param_s_to_num_trial[31] = {
     -1,
-    3, 8, 32, 64, 128, 256, -1, -1, -1, -1,
+    3, 8, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
@@ -483,15 +483,12 @@ struct Solver {
         num_trial = num_trial_;
     }
 
-    void set_params_opt() {
+    void solve() {
         for (int k = 1; k <= 30; k++) {
             if (S == k * k) {
                 set_params(param_s_to_interval[k], param_s_to_num_trial[k]);
             }
         }
-    }
-
-    void solve() {
         const auto temperature = create_temperature();
         judge->set_temperature(temperature);
         const auto estimate = predict(temperature);
@@ -521,10 +518,7 @@ struct Solver {
 
         auto temperature = make_vector(0, L, L);
         auto fixed = make_vector(false, L, L);
-
         if (interval == -1) interval = (int)floor(1000 / N);
-        chmin(interval, (int)floor(1000 / N));
-
         // set the temperature to i * 10 for i-th position
         for (int k = 0; k < N; k++) {
             int i = std::get<0>(tmp[k]);
@@ -576,10 +570,7 @@ struct Solver {
 
     std::vector<int> predict(const std::vector<std::vector<int>>& temperature) {
         std::vector<int> estimate(N);
-
         if (num_trial == -1) num_trial = (int)floor(10000 / N);
-        chmin(num_trial, (int)floor(10000 / N));
-
         for (int i_in = 0; i_in < N; i_in++) {
             auto measured_value = judge->measure(i_in, 0, 0, num_trial);
             // answer the position with the temperature closest to the measured value
@@ -607,25 +598,22 @@ void batch_execution() {
     int num_seeds = 50;
 
     // grid_search
-    int intervals[] = { 1,2,4,8,16 };
-    int num_trials[] = { 1,2,4,8,16,32,64,128,256 };
-    for (int interval : intervals) {
-        for (int num_trial : num_trials) {
+    for (int interval = 1; interval <= 16; interval *= 2) {
+        for (int num_trial = 1; num_trial <= 16; num_trial *= 2) {
             std::vector<Metrics> metrics_list(num_seeds);
 
             int progress = 0;
             int64_t score_sum = 0;
             int64_t min_score = INT64_MAX, max_score = INT64_MIN;
 
-#pragma omp parallel for num_threads(6)
+#pragma omp parallel for num_threads(10)
             for (int seed = 0; seed < num_seeds; seed++) {
                 //std::string input_file(format("../../tools_win/in/%04d.txt", seed));
                 //std::string output_file(format("../../tools_win/out/%04d.txt", seed));
                 //auto judge = std::make_shared<FileJudge>(input_file, output_file);
                 auto judge = std::make_shared<LocalJudge>(seed, -1, -1, 4);
                 Solver solver(judge);
-                //solver.set_params(interval, num_trial);
-                solver.set_params_opt();
+                solver.set_params(interval, num_trial);
                 solver.solve();
 #pragma omp critical(crit_sct)
                 {
@@ -638,8 +626,7 @@ void batch_execution() {
                     metrics_list[seed] = metrics;
                 }
             }
-            std::cerr << '\n';
-            //std::cerr << format("\ninterval=%3d, num_trial=%3d, avg=%13.2f, min=%11lld, max=%11lld\n", interval, num_trial, (double)score_sum / progress, min_score, max_score);
+            std::cerr << format("\ninterval=%3d, num_trial=%3d, avg=%13.2f, min=%11lld, max=%11lld\n", interval, num_trial, (double)score_sum / progress, min_score, max_score);
             //std::cerr << '\n';
             //for (int seed = 0; seed < num_seeds; seed++) {
             //    std::cerr << format("seed=%3d, ", seed) << metrics_list[seed] << '\n';
@@ -654,8 +641,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    batch_execution();
-    exit(0);
+    //batch_execution();
+    //exit(0);
 
     JudgePtr judge;
 
@@ -672,7 +659,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     }
 
     Solver solver(judge);
-    solver.set_params_opt();
     solver.solve();
 
     return 0;

@@ -1,0 +1,600 @@
+- Seed: 0
+  Score: 110110
+  Number of wrong answers: 19
+  Placement cost: 3013388
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 1
+  Score: 6
+  Number of wrong answers: 63
+  Placement cost: 3567020
+  Measurement cost: 9966000
+  Measurement count: 9966
+- Seed: 2
+  Score: 1
+  Number of wrong answers: 82
+  Placement cost: 3267666
+  Measurement cost: 9968000
+  Measurement count: 9968
+- Seed: 3
+  Score: 81899546
+  Number of wrong answers: 0
+  Placement cost: 633008
+  Measurement cost: 488000
+  Measurement count: 488
+- Seed: 4
+  Score: 1
+  Number of wrong answers: 78
+  Placement cost: 3143032
+  Measurement cost: 9963000
+  Measurement count: 9963
+- Seed: 5
+  Score: 1
+  Number of wrong answers: 90
+  Placement cost: 3127910
+  Measurement cost: 9951000
+  Measurement count: 9951
+- Seed: 6
+  Score: 1
+  Number of wrong answers: 86
+  Placement cost: 3047736
+  Measurement cost: 9968000
+  Measurement count: 9968
+- Seed: 7
+  Score: 3058416
+  Number of wrong answers: 4
+  Placement cost: 3352556
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 8
+  Score: 1
+  Number of wrong answers: 85
+  Placement cost: 3179744
+  Measurement cost: 9918000
+  Measurement count: 9918
+- Seed: 9
+  Score: 208
+  Number of wrong answers: 47
+  Placement cost: 3362580
+  Measurement cost: 9943000
+  Measurement count: 9943
+- Seed: 10
+  Score: 123056477
+  Number of wrong answers: 1
+  Placement cost: 265108
+  Measurement cost: 285000
+  Measurement count: 285
+- Seed: 11
+  Score: 12415
+  Number of wrong answers: 29
+  Placement cost: 2436170
+  Measurement cost: 9928000
+  Measurement count: 9928
+- Seed: 12
+  Score: 4943735
+  Number of wrong answers: 2
+  Placement cost: 2889678
+  Measurement cost: 9956000
+  Measurement count: 9956
+- Seed: 13
+  Score: 122693742
+  Number of wrong answers: 1
+  Placement cost: 264030
+  Measurement cost: 288000
+  Measurement count: 288
+- Seed: 14
+  Score: 333
+  Number of wrong answers: 45
+  Placement cost: 3041622
+  Measurement cost: 9945000
+  Measurement count: 9945
+- Seed: 15
+  Score: 1
+  Number of wrong answers: 90
+  Placement cost: 2822964
+  Measurement cost: 9951000
+  Measurement count: 9951
+- Seed: 16
+  Score: 3977
+  Number of wrong answers: 34
+  Placement cost: 2668478
+  Measurement cost: 9984000
+  Measurement count: 9984
+- Seed: 17
+  Score: 15
+  Number of wrong answers: 59
+  Placement cost: 3268916
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 18
+  Score: 6400012
+  Number of wrong answers: 1
+  Placement cost: 2471978
+  Measurement cost: 9928000
+  Measurement count: 9928
+- Seed: 19
+  Score: 6
+  Number of wrong answers: 63
+  Placement cost: 3267124
+  Measurement cost: 9945000
+  Measurement count: 9945
+- Seed: 20
+  Score: 37
+  Number of wrong answers: 55
+  Placement cost: 2813332
+  Measurement cost: 9964000
+  Measurement count: 9964
+- Seed: 21
+  Score: 18
+  Number of wrong answers: 58
+  Placement cost: 3414476
+  Measurement cost: 9982000
+  Measurement count: 9982
+- Seed: 22
+  Score: 19
+  Number of wrong answers: 58
+  Placement cost: 3006116
+  Measurement cost: 9982000
+  Measurement count: 9982
+- Seed: 23
+  Score: 8788642
+  Number of wrong answers: 1
+  Placement cost: 3242658
+  Measurement cost: 5760000
+  Measurement count: 5760
+- Seed: 24
+  Score: 12
+  Number of wrong answers: 60
+  Placement cost: 3002852
+  Measurement cost: 9982000
+  Measurement count: 9982
+- Seed: 25
+  Score: 8
+  Number of wrong answers: 62
+  Placement cost: 3636542
+  Measurement cost: 9945000
+  Measurement count: 9945
+- Seed: 26
+  Score: 2
+  Number of wrong answers: 70
+  Placement cost: 3254484
+  Measurement cost: 9990000
+  Measurement count: 9990
+- Seed: 27
+  Score: 1
+  Number of wrong answers: 86
+  Placement cost: 3303468
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 28
+  Score: 1
+  Number of wrong answers: 74
+  Placement cost: 2914076
+  Measurement cost: 9956000
+  Measurement count: 9956
+- Seed: 29
+  Score: 5039281
+  Number of wrong answers: 2
+  Placement cost: 2646226
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 30
+  Score: 20962436
+  Number of wrong answers: 0
+  Placement cost: 1598438
+  Measurement cost: 3072000
+  Measurement count: 3072
+- Seed: 31
+  Score: 13
+  Number of wrong answers: 60
+  Placement cost: 2597688
+  Measurement cost: 9936000
+  Measurement count: 9936
+- Seed: 32
+  Score: 15
+  Number of wrong answers: 59
+  Placement cost: 3370340
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 33
+  Score: 12
+  Number of wrong answers: 60
+  Placement cost: 2836278
+  Measurement cost: 9960000
+  Measurement count: 9960
+- Seed: 34
+  Score: 194643414
+  Number of wrong answers: 1
+  Placement cost: 116008
+  Measurement cost: 195000
+  Measurement count: 195
+- Seed: 35
+  Score: 19
+  Number of wrong answers: 58
+  Placement cost: 2829674
+  Measurement cost: 9960000
+  Measurement count: 9960
+- Seed: 36
+  Score: 7297108
+  Number of wrong answers: 2
+  Placement cost: 2846598
+  Measurement cost: 5824000
+  Measurement count: 5824
+- Seed: 37
+  Score: 1
+  Number of wrong answers: 85
+  Placement cost: 3929508
+  Measurement cost: 9945000
+  Measurement count: 9945
+- Seed: 38
+  Score: 1
+  Number of wrong answers: 71
+  Placement cost: 3505670
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 39
+  Score: 1
+  Number of wrong answers: 76
+  Placement cost: 3150108
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 40
+  Score: 1
+  Number of wrong answers: 94
+  Placement cost: 3304858
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 41
+  Score: 16616083
+  Number of wrong answers: 2
+  Placement cost: 1351690
+  Measurement cost: 2400000
+  Measurement count: 2400
+- Seed: 42
+  Score: 4026922
+  Number of wrong answers: 3
+  Placement cost: 2630428
+  Measurement cost: 9984000
+  Measurement count: 9984
+- Seed: 43
+  Score: 423942
+  Number of wrong answers: 13
+  Placement cost: 2892726
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 44
+  Score: 1
+  Number of wrong answers: 76
+  Placement cost: 3189584
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 45
+  Score: 1
+  Number of wrong answers: 85
+  Placement cost: 3614760
+  Measurement cost: 9918000
+  Measurement count: 9918
+- Seed: 46
+  Score: 1
+  Number of wrong answers: 91
+  Placement cost: 3340938
+  Measurement cost: 9936000
+  Measurement count: 9936
+- Seed: 47
+  Score: 1
+  Number of wrong answers: 79
+  Placement cost: 3682696
+  Measurement cost: 9968000
+  Measurement count: 9968
+- Seed: 48
+  Score: 2
+  Number of wrong answers: 69
+  Placement cost: 3581572
+  Measurement cost: 9999000
+  Measurement count: 9999
+- Seed: 49
+  Score: 2534286
+  Number of wrong answers: 5
+  Placement cost: 2833878
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 50
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 2632254
+  Measurement cost: 9945000
+  Measurement count: 9945
+- Seed: 51
+  Score: 57
+  Number of wrong answers: 53
+  Placement cost: 2743252
+  Measurement cost: 9990000
+  Measurement count: 9990
+- Seed: 52
+  Score: 1
+  Number of wrong answers: 77
+  Placement cost: 2795614
+  Measurement cost: 10000000
+  Measurement count: 10000
+- Seed: 53
+  Score: 10
+  Number of wrong answers: 61
+  Placement cost: 2423870
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 54
+  Score: 5
+  Number of wrong answers: 64
+  Placement cost: 3027926
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 55
+  Score: 30586886
+  Number of wrong answers: 1
+  Placement cost: 1843500
+  Measurement cost: 672000
+  Measurement count: 672
+- Seed: 56
+  Score: 45028
+  Number of wrong answers: 23
+  Placement cost: 3013676
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 57
+  Score: 1
+  Number of wrong answers: 75
+  Placement cost: 2869756
+  Measurement cost: 9922000
+  Measurement count: 9922
+- Seed: 58
+  Score: 1
+  Number of wrong answers: 75
+  Placement cost: 3169720
+  Measurement cost: 9956000
+  Measurement count: 9956
+- Seed: 59
+  Score: 4
+  Number of wrong answers: 65
+  Placement cost: 3204426
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 60
+  Score: 1
+  Number of wrong answers: 93
+  Placement cost: 3110548
+  Measurement cost: 9984000
+  Measurement count: 9984
+- Seed: 61
+  Score: 131490
+  Number of wrong answers: 18
+  Placement cost: 3616228
+  Measurement cost: 9984000
+  Measurement count: 9984
+- Seed: 62
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 2382290
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 63
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 3006776
+  Measurement cost: 9964000
+  Measurement count: 9964
+- Seed: 64
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 3072306
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 65
+  Score: 1
+  Number of wrong answers: 91
+  Placement cost: 2711800
+  Measurement cost: 9951000
+  Measurement count: 9951
+- Seed: 66
+  Score: 1
+  Number of wrong answers: 77
+  Placement cost: 2823276
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 67
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 2418146
+  Measurement cost: 9928000
+  Measurement count: 9928
+- Seed: 68
+  Score: 1
+  Number of wrong answers: 81
+  Placement cost: 3776814
+  Measurement cost: 9960000
+  Measurement count: 9960
+- Seed: 69
+  Score: 1
+  Number of wrong answers: 80
+  Placement cost: 2829568
+  Measurement cost: 9922000
+  Measurement count: 9922
+- Seed: 70
+  Score: 1
+  Number of wrong answers: 75
+  Placement cost: 3042790
+  Measurement cost: 9956000
+  Measurement count: 9956
+- Seed: 71
+  Score: 4
+  Number of wrong answers: 65
+  Placement cost: 2873572
+  Measurement cost: 9919000
+  Measurement count: 9919
+- Seed: 72
+  Score: 4895
+  Number of wrong answers: 33
+  Placement cost: 2873882
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 73
+  Score: 1
+  Number of wrong answers: 97
+  Placement cost: 3619720
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 74
+  Score: 1075777
+  Number of wrong answers: 9
+  Placement cost: 2380358
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 75
+  Score: 1
+  Number of wrong answers: 75
+  Placement cost: 3096562
+  Measurement cost: 9963000
+  Measurement count: 9963
+- Seed: 76
+  Score: 8400176
+  Number of wrong answers: 1
+  Placement cost: 3919610
+  Measurement cost: 5504000
+  Measurement count: 5504
+- Seed: 77
+  Score: 131
+  Number of wrong answers: 49
+  Placement cost: 3609670
+  Measurement cost: 9968000
+  Measurement count: 9968
+- Seed: 78
+  Score: 1
+  Number of wrong answers: 81
+  Placement cost: 2900516
+  Measurement cost: 9976000
+  Measurement count: 9976
+- Seed: 79
+  Score: 16494897
+  Number of wrong answers: 2
+  Placement cost: 1251988
+  Measurement cost: 2528000
+  Measurement count: 2528
+- Seed: 80
+  Score: 1
+  Number of wrong answers: 72
+  Placement cost: 3180206
+  Measurement cost: 9922000
+  Measurement count: 9922
+- Seed: 81
+  Score: 7
+  Number of wrong answers: 63
+  Placement cost: 2697732
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 82
+  Score: 15575786
+  Number of wrong answers: 2
+  Placement cost: 1416942
+  Measurement cost: 2592000
+  Measurement count: 2592
+- Seed: 83
+  Score: 264
+  Number of wrong answers: 46
+  Placement cost: 3208064
+  Measurement cost: 9936000
+  Measurement count: 9936
+- Seed: 84
+  Score: 19
+  Number of wrong answers: 58
+  Placement cost: 2586506
+  Measurement cost: 9983000
+  Measurement count: 9983
+- Seed: 85
+  Score: 1
+  Number of wrong answers: 72
+  Placement cost: 3692982
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 86
+  Score: 1
+  Number of wrong answers: 73
+  Placement cost: 2853304
+  Measurement cost: 9990000
+  Measurement count: 9990
+- Seed: 87
+  Score: 4
+  Number of wrong answers: 66
+  Placement cost: 2926734
+  Measurement cost: 9983000
+  Measurement count: 9983
+- Seed: 88
+  Score: 155376010
+  Number of wrong answers: 0
+  Placement cost: 252600
+  Measurement cost: 291000
+  Measurement count: 291
+- Seed: 89
+  Score: 422145
+  Number of wrong answers: 13
+  Placement cost: 3000920
+  Measurement cost: 9922000
+  Measurement count: 9922
+- Seed: 90
+  Score: 13
+  Number of wrong answers: 60
+  Placement cost: 2597630
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 91
+  Score: 1
+  Number of wrong answers: 75
+  Placement cost: 2957572
+  Measurement cost: 9954000
+  Measurement count: 9954
+- Seed: 92
+  Score: 1
+  Number of wrong answers: 93
+  Placement cost: 3206114
+  Measurement cost: 9975000
+  Measurement count: 9975
+- Seed: 93
+  Score: 1
+  Number of wrong answers: 97
+  Placement cost: 3088664
+  Measurement cost: 9999000
+  Measurement count: 9999
+- Seed: 94
+  Score: 3
+  Number of wrong answers: 68
+  Placement cost: 2713602
+  Measurement cost: 9940000
+  Measurement count: 9940
+- Seed: 95
+  Score: 1
+  Number of wrong answers: 82
+  Placement cost: 2814030
+  Measurement cost: 9964000
+  Measurement count: 9964
+- Seed: 96
+  Score: 2
+  Number of wrong answers: 71
+  Placement cost: 2612274
+  Measurement cost: 9936000
+  Measurement count: 9936
+- Seed: 97
+  Score: 1
+  Number of wrong answers: 83
+  Placement cost: 3070122
+  Measurement cost: 9918000
+  Measurement count: 9918
+- Seed: 98
+  Score: 1
+  Number of wrong answers: 83
+  Placement cost: 3071486
+  Measurement cost: 9996000
+  Measurement count: 9996
+- Seed: 99
+  Score: 5740645
+  Number of wrong answers: 1
+  Placement cost: 3890718
+  Measurement cost: 9945000
+  Measurement count: 9945

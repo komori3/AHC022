@@ -12,7 +12,6 @@
 #include <opencv2/highgui.hpp>
 #include <conio.h>
 #include <ppl.h>
-#include <omp.h>
 #include <filesystem>
 #include <intrin.h>
 /* g++ functions */
@@ -149,19 +148,6 @@ inline double get_temp(double stemp, double etemp, double t, double T) {
 };
 #endif
 
-constexpr int param_s_to_interval[31] = {
-    -1,
-    3, 8, 8, 16, 16, 16, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-};
-constexpr int param_s_to_num_trial[31] = {
-    -1,
-    3, 8, 32, 64, 128, 256, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-};
-
 struct Pos {
     int y, x;
     Pos(int y = 0, int x = 0) : y(y), x(x) {}
@@ -178,12 +164,6 @@ struct Metrics {
     int64_t placement_cost;
     int64_t measurement_cost;
     int measurement_count;
-    std::string stringify() const {
-        return format(
-            "score=%10lld, wrong=%3d, placement_cost=%10lld, measurement_cost=%10lld, measurement_count=%5d",
-            score, wrong, placement_cost, measurement_cost, measurement_count
-            );
-    }
 };
 
 struct Judge;
@@ -332,7 +312,7 @@ struct FileJudge : Judge {
             wrong += A[i] != estimate[i];
         }
         score = (int64_t)ceil(1e14 * pow(0.8, wrong) / (1e5 + placement_cost + measurement_cost));
-        // dump(placement_cost, measurement_cost, wrong, score);
+        dump(placement_cost, measurement_cost, wrong, score);
     }
 
     std::optional<Metrics> get_metrics() const override {
@@ -452,7 +432,7 @@ struct LocalJudge : Judge {
             wrong += A[i] != estimate[i];
         }
         score = (int64_t)ceil(1e14 * pow(0.8, wrong) / (1e5 + placement_cost + measurement_cost));
-        // dump(placement_cost, measurement_cost, wrong, score);
+        dump(placement_cost, measurement_cost, wrong, score);
     }
 
     std::optional<Metrics> get_metrics() const override {
@@ -471,25 +451,9 @@ struct Solver {
     const int N;
     const int S;
     const std::vector<Pos> landing_pos;
-
-    // params
-    int interval = -1;
-    int num_trial = -1;
+    
 
     Solver(JudgePtr judge_) : judge(judge_), input(judge->get_input()), L(input.L), N(input.N), S(input.S), landing_pos(input.landing_pos) {}
-
-    void set_params(int interval_, int num_trial_) {
-        interval = interval_;
-        num_trial = num_trial_;
-    }
-
-    void set_params_opt() {
-        for (int k = 1; k <= 30; k++) {
-            if (S == k * k) {
-                set_params(param_s_to_interval[k], param_s_to_num_trial[k]);
-            }
-        }
-    }
 
     void solve() {
         const auto temperature = create_temperature();
@@ -499,7 +463,7 @@ struct Solver {
         auto metrics_opt = judge->get_metrics();
         if (metrics_opt) {
             auto [score, wrong, placement_cost, measurement_cost, measurement_count] = *metrics_opt;
-            // dump(score, wrong, placement_cost, measurement_cost, measurement_count);
+            dump(score, wrong, placement_cost, measurement_cost, measurement_count);
         }
     }
 
@@ -521,14 +485,11 @@ struct Solver {
 
         auto temperature = make_vector(0, L, L);
         auto fixed = make_vector(false, L, L);
-
-        if (interval == -1) interval = (int)floor(1000 / N);
-        chmin(interval, (int)floor(1000 / N));
-
+        int C = (int)floor(1000 / N);
         // set the temperature to i * 10 for i-th position
         for (int k = 0; k < N; k++) {
             int i = std::get<0>(tmp[k]);
-            temperature[landing_pos[i].y][landing_pos[i].x] = k * interval;
+            temperature[landing_pos[i].y][landing_pos[i].x] = k * C;
             fixed[landing_pos[i].y][landing_pos[i].x] = true;
         }
 
@@ -545,7 +506,7 @@ struct Solver {
             }
         }
         cost /= 2;
-        // dump(cost);
+        dump(cost);
 
         Xorshift rnd;
         int loop = 0;
@@ -565,23 +526,20 @@ struct Solver {
                 temperature[i][j] = new_value;
                 cost += diff;
             }
-            //if (!(loop & 0x7FFFFF)) {
-            //    dump(loop, cost);
-            //}
+            if (!(loop & 0x7FFFFF)) {
+                dump(loop, cost);
+            }
         }
-        // dump(loop, cost);
+        dump(loop, cost);
 
         return temperature;
     }
 
     std::vector<int> predict(const std::vector<std::vector<int>>& temperature) {
         std::vector<int> estimate(N);
-
-        if (num_trial == -1) num_trial = (int)floor(10000 / N);
-        chmin(num_trial, (int)floor(10000 / N));
-
+        int T = 10000 / N;
         for (int i_in = 0; i_in < N; i_in++) {
-            auto measured_value = judge->measure(i_in, 0, 0, num_trial);
+            auto measured_value = judge->measure(i_in, 0, 0, T);
             // answer the position with the temperature closest to the measured value
             double min_diff = 9999;
             for (int i_out = 0; i_out < N; i_out++) {
@@ -595,67 +553,15 @@ struct Solver {
         }
         return estimate;
     }
-
-    std::optional<Metrics> get_metrics() const {
-        return judge->get_metrics();
-    }
-
 };
 
-void batch_execution() {
-
-    int num_seeds = 50;
-
-    // grid_search
-    int intervals[] = { 1,2,4,8,16 };
-    int num_trials[] = { 1,2,4,8,16,32,64,128,256 };
-    for (int interval : intervals) {
-        for (int num_trial : num_trials) {
-            std::vector<Metrics> metrics_list(num_seeds);
-
-            int progress = 0;
-            int64_t score_sum = 0;
-            int64_t min_score = INT64_MAX, max_score = INT64_MIN;
-
-#pragma omp parallel for num_threads(6)
-            for (int seed = 0; seed < num_seeds; seed++) {
-                //std::string input_file(format("../../tools_win/in/%04d.txt", seed));
-                //std::string output_file(format("../../tools_win/out/%04d.txt", seed));
-                //auto judge = std::make_shared<FileJudge>(input_file, output_file);
-                auto judge = std::make_shared<LocalJudge>(seed, -1, -1, 4);
-                Solver solver(judge);
-                //solver.set_params(interval, num_trial);
-                solver.set_params_opt();
-                solver.solve();
-#pragma omp critical(crit_sct)
-                {
-                    auto metrics = *solver.get_metrics();
-                    progress++;
-                    score_sum += metrics.score;
-                    chmin(min_score, metrics.score);
-                    chmax(max_score, metrics.score);
-                    std::cerr << format("\rprogress=%3d/%3d, avg=%13.2f, min=%11lld, max=%11lld, interval=%3d, num_trial=%3d", progress, num_seeds, (double)score_sum / progress, min_score, max_score, interval, num_trial);
-                    metrics_list[seed] = metrics;
-                }
-            }
-            std::cerr << '\n';
-            //std::cerr << format("\ninterval=%3d, num_trial=%3d, avg=%13.2f, min=%11lld, max=%11lld\n", interval, num_trial, (double)score_sum / progress, min_score, max_score);
-            //std::cerr << '\n';
-            //for (int seed = 0; seed < num_seeds; seed++) {
-            //    std::cerr << format("seed=%3d, ", seed) << metrics_list[seed] << '\n';
-            //}
-        }
-    }
-}
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+
+    Timer timer;
 
 #ifdef HAVE_OPENCV_HIGHGUI
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
-
-    batch_execution();
-    exit(0);
 
     JudgePtr judge;
 
@@ -672,7 +578,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     }
 
     Solver solver(judge);
-    solver.set_params_opt();
     solver.solve();
 
     return 0;

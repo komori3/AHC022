@@ -617,15 +617,14 @@ void batch_execution() {
             int64_t score_sum = 0;
             int64_t min_score = INT64_MAX, max_score = INT64_MIN;
 
-#pragma omp parallel for num_threads(6)
+#pragma omp parallel for num_threads(10)
             for (int seed = 0; seed < num_seeds; seed++) {
                 //std::string input_file(format("../../tools_win/in/%04d.txt", seed));
                 //std::string output_file(format("../../tools_win/out/%04d.txt", seed));
                 //auto judge = std::make_shared<FileJudge>(input_file, output_file);
-                auto judge = std::make_shared<LocalJudge>(seed, -1, -1, 4);
+                auto judge = std::make_shared<LocalJudge>(seed, -1, -1, 36);
                 Solver solver(judge);
-                //solver.set_params(interval, num_trial);
-                solver.set_params_opt();
+                solver.set_params(interval, num_trial);
                 solver.solve();
 #pragma omp critical(crit_sct)
                 {
@@ -654,8 +653,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    batch_execution();
-    exit(0);
+    //batch_execution();
+    //exit(0);
 
     JudgePtr judge;
 

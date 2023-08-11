@@ -11,13 +11,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\solver.cpp" />
+    <ClCompile Include="src\experimental.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{210bdd97-513b-4a61-a9b9-5212250ef4a8}</ProjectGuid>
-    <RootNamespace>solver</RootNamespace>
+    <ProjectGuid>{b68fe156-46ba-48fc-ad67-27a5432bc0ae}</ProjectGuid>
+    <RootNamespace>experimental</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

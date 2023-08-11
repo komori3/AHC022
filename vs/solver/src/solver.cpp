@@ -152,9 +152,39 @@ struct Pos {
     int y, x;
 };
 
+struct Input {
+    int L, N, S;
+    std::vector<Pos> landing_pos;
+};
+
+struct Judge;
+using JudgePtr = std::shared_ptr<Judge>;
 struct Judge {
 
-    void set_temperature(const std::vector<std::vector<int>>& temperature) {
+    virtual Input get_input() const = 0;
+    virtual void set_temperature(const std::vector<std::vector<int>>& temperature) = 0;
+    virtual int measure(int i, int y, int x) = 0;
+    virtual double measure(int i, int y, int x, int iter) = 0;
+    virtual void answer(const std::vector<int>& estimate) = 0;
+
+};
+
+struct ServerJudge;
+using ServerJudgePtr = std::shared_ptr<ServerJudge>;
+struct ServerJudge : Judge {
+
+    Input get_input() const {
+        int L, N, S;
+        std::vector<Pos> landing_pos;
+        std::cin >> L >> N >> S;
+        landing_pos.resize(N);
+        for (int i = 0; i < N; i++) {
+            std::cin >> landing_pos[i].y >> landing_pos[i].x;
+        }
+        return { L, N, S, landing_pos };
+    }
+
+    void set_temperature(const std::vector<std::vector<int>>& temperature) override {
         for (const auto& row : temperature) {
             for (int i = 0; i < row.size(); i++) {
                 std::cout << row[i] << (i == row.size() - 1 ? "\n" : " ");
@@ -163,7 +193,7 @@ struct Judge {
         std::cout.flush();
     }
 
-    int measure(int i, int y, int x) {
+    int measure(int i, int y, int x) override {
         std::cout << i << " " << y << " " << x << std::endl; // endl does flush
         int v;
         std::cin >> v;
@@ -174,7 +204,7 @@ struct Judge {
         return v;
     }
 
-    double measure(int i, int y, int x, int iter) {
+    double measure(int i, int y, int x, int iter) override {
         double sum = 0.0;
         for (int trial = 0; trial < iter; trial++) {
             sum += measure(i, y, x);
@@ -182,12 +212,99 @@ struct Judge {
         return sum / iter;
     }
 
-    void answer(const std::vector<int>& estimate) {
+    void answer(const std::vector<int>& estimate) override {
         std::cout << "-1 -1 -1" << std::endl;
         for (int e : estimate) {
             std::cout << e << std::endl;
         }
     }
+
+};
+
+struct FileJudge;
+using FileJudgePtr = std::shared_ptr<FileJudge>;
+struct FileJudge : Judge {
+
+    std::ifstream in;
+    std::ofstream out;
+
+    Input input;
+    std::vector<int> A;
+    std::vector<int> F;
+
+    int turn = 0;
+    std::vector<std::vector<int>> temperature;
+    std::vector<int> estimate;
+
+    int64_t placement_cost = 0;
+    int64_t measurement_cost = 0;
+
+    FileJudge(const std::string& input_file, const std::string& output_file) : in(input_file), out(output_file) {
+        in >> input.L >> input.N >> input.S;
+        input.landing_pos.resize(input.N);
+        for (int i = 0; i < input.N; i++) {
+            in >> input.landing_pos[i].y >> input.landing_pos[i].x;
+        }
+        A.resize(input.N);
+        F.resize(10000);
+        in >> A >> F;
+        dump(A);
+        dump(F);
+    }
+
+    Input get_input() const { return input; }
+
+    void set_temperature(const std::vector<std::vector<int>>& temperature_) override {
+        temperature = temperature_;
+        for (const auto& row : temperature) {
+            for (int i = 0; i < row.size(); i++) {
+                out << row[i] << (i == row.size() - 1 ? "\n" : " ");
+            }
+        }
+        out.flush();
+
+        const int L = input.L;
+        for (int i = 0; i < L; i++) {
+            for (int j = 0; j < L; j++) {
+                int s = temperature[i][j], t = temperature[i][(j + 1) % L], u = temperature[(i + 1) % L][j];
+                placement_cost += (s - t) * (s - t) + (s - u) * (s - u);
+            }
+        }
+    }
+
+    int measure(int i, int y, int x) override {
+        if (turn >= 10000) {
+            std::cerr << "something went wrong. i=" << i << " y=" << y << " x=" << x << std::endl;
+            exit(1);
+        }
+        out << i << " " << y << " " << x << '\n';
+        measurement_cost += 100 * (10 + abs(y) + abs(x));
+        int ty = (input.landing_pos[A[i]].y + input.L + y) % input.L;
+        int tx = (input.landing_pos[A[i]].x + input.L + x) % input.L;
+        return std::clamp(temperature[ty][tx] + F[turn++], 0, 1000);
+    }
+
+    double measure(int i, int y, int x, int iter) override {
+        double sum = 0.0;
+        for (int trial = 0; trial < iter; trial++) {
+            sum += measure(i, y, x);
+        }
+        return sum / iter;
+    }
+
+    void answer(const std::vector<int>& estimate_) override {
+        estimate = estimate_;
+        out << "-1 -1 -1\n";
+        for (int e : estimate) {
+            out << e << '\n';
+        }
+        int wrong = 0;
+        for (int i = 0; i < input.N; i++) wrong += A[i] != estimate[i];
+        dump(placement_cost, measurement_cost, wrong);
+        int64_t score = (int64_t)ceil(1e14 * pow(0.8, wrong) / (1e5 + placement_cost + measurement_cost));
+        dump(score);
+    }
+
 };
 
 struct Solver {
@@ -198,17 +315,16 @@ struct Solver {
     const int N;
     const int S;
     const std::vector<Pos> landing_pos;
-    Judge judge;
+    JudgePtr judge;
 
-    Solver(int L, int N, int S, const std::vector<Pos>& landing_pos) :
-        L(L), N(N), S(S), landing_pos(landing_pos), judge() {
-    }
+    Solver(const Input& input, JudgePtr judge_) 
+        : L(input.L), N(input.N), S(input.S), landing_pos(input.landing_pos), judge(judge_) {}
 
     void solve() {
         const auto temperature = create_temperature();
-        judge.set_temperature(temperature);
+        judge->set_temperature(temperature);
         const auto estimate = predict(temperature);
-        judge.answer(estimate);
+        judge->answer(estimate);
     }
 
     std::vector<std::vector<int>> create_temperature() {
@@ -281,18 +397,15 @@ struct Solver {
 
     std::vector<int> predict(const std::vector<std::vector<int>>& temperature) {
         std::vector<int> estimate(N);
-        //int T = 10000 / N;
-        int T = 10;
+        int T = 10000 / N;
         for (int i_in = 0; i_in < N; i_in++) {
-            // you can output comment
-            std::cout << "# measure i=" << i_in << " y=0 x=0" << std::endl;
-
-            int measured_value = judge.measure(i_in, 0, 0, T);
+            auto measured_value = judge->measure(i_in, 0, 0, T);
+            dump(i_in, measured_value);
             // answer the position with the temperature closest to the measured value
-            int min_diff = 9999;
+            double min_diff = 9999;
             for (int i_out = 0; i_out < N; i_out++) {
                 const Pos& pos = landing_pos[i_out];
-                int diff = abs(temperature[pos.y][pos.x] - measured_value);
+                double diff = abs(temperature[pos.y][pos.x] - measured_value);
                 if (diff < min_diff) {
                     min_diff = diff;
                     estimate[i_in] = i_out;
@@ -311,17 +424,20 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    std::istream& in = std::cin;
-    std::ostream& out = std::cout;
+    JudgePtr judge;
 
-    int L, N, S;
-    in >> L >> N >> S;
-    std::vector<Pos> landing_pos(N);
-    for (int i = 0; i < N; i++) {
-        in >> landing_pos[i].y >> landing_pos[i].x;
+    if (false) {
+        judge = std::make_shared<ServerJudge>();
+    }
+    else {
+        std::string input_file("../../tools_win/in/0000.txt");
+        std::string output_file("../../tools_win/out/0000.txt");
+        judge = std::make_shared<FileJudge>(input_file, output_file);
     }
 
-    Solver solver(L, N, S, landing_pos);
+    auto input = judge->get_input();
+
+    Solver solver(input, judge);
     solver.solve();
 
     return 0;

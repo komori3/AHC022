@@ -151,18 +151,13 @@ inline double get_temp(double stemp, double etemp, double t, double T) {
 
 
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-
-#ifdef HAVE_OPENCV_HIGHGUI
-    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
-#endif
-
+void calc_error() {
     // 標準偏差 S の場合に、温度 t のセルを温度 t-d 以下 or t+d 以上と判定する確率
     int S = 4;
     std::mt19937_64 engine(0);
     std::normal_distribution<> dist_norm(0, S);
 
-    int t1 = 100, d = 8, nsample = 1000000, ntrial = 3;
+    int t1 = 100, d = 16, nsample = 1000000, ntrial = 1;
     std::vector<int> hist(200);
     for (int i = 0; i < nsample; i++) {
         double xsum = 0.0;
@@ -177,6 +172,188 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     int wrong = nsample;
     for (int x = t1 - d + 1; x <= t1 + d - 1; x++) wrong -= hist[x];
     dump(wrong, nsample, double(wrong) / nsample);
+}
+
+
+
+struct Pos {
+    int y, x;
+    Pos(int y = -1, int x = -1) : y(y), x(x) {}
+    std::string stringify() const {
+        return "(" + std::to_string(y) + ", " + std::to_string(x) + ")";
+    }
+    bool operator<(const Pos& rhs) const {
+        return y == rhs.y ? x < rhs.x : y < rhs.y;
+    }
+};
+
+std::vector<Pos> choose_positions(int L, int N, int seed = 0) {
+    std::mt19937_64 engine(seed);
+    std::vector<Pos> cands;
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            cands.emplace_back(y, x);
+        }
+    }
+    std::shuffle(cands.begin(), cands.end(), engine);
+    cands.erase(cands.begin() + N, cands.end());
+    std::sort(cands.begin(), cands.end());
+    return cands;
+}
+
+void find_unique_encoding_grid(
+    const std::vector<Pos>& pos,
+    int L, // grid size
+    int Q, // number of quantization
+    int D  // number of neighbors
+) {
+    // 6 2 5
+    // 3 0 1
+    // 7 4 8
+    constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
+    constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
+
+    const int N = pos.size();
+
+    std::vector<int> powers({ 1 });
+    while (powers.size() < D) {
+        powers.push_back(powers.back() * Q);
+    }
+
+    auto grid = make_vector(0, L, L);
+    auto grid_to_id = make_vector(std::vector<std::pair<int, int>>(), L, L);
+    for (int i = 0; i < N; i++) {
+        auto [y, x] = pos[i];
+        for (int d = 0; d < D; d++) {
+            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
+            grid_to_id[ny][nx].emplace_back(i, d);
+        }
+    }
+
+    Xorshift rnd;
+
+    std::vector<Pos> cands;
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            if (!grid_to_id[y][x].empty()) {
+                cands.emplace_back(y, x);
+                grid[y][x] = rnd.next_int(Q);
+            }
+        }
+    }
+
+    std::vector<int> codes(N);
+    std::vector<int> code_ctr((int)pow(Q, D));
+    for (int i = 0; i < N; i++) {
+        auto [y, x] = pos[i];
+        int code = 0;
+        for (int d = 0; d < D; d++) {
+            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
+            code += grid[ny][nx] * powers[d];
+        }
+        codes[i] = code;
+        code_ctr[code]++;
+    }
+
+    int cost = 0;
+    for (int c : code_ctr) {
+        int x = std::max(0, c - 1);
+        cost += x * x;
+    }
+    dump(code_ctr);
+    dump(cost);
+
+    auto pop = [&](int value) {
+        assert(code_ctr[value]);
+        int px = std::max(0, code_ctr[value] - 1);
+        cost -= px * px;
+        code_ctr[value]--;
+        int nx = std::max(0, code_ctr[value] - 1);
+        cost += nx * nx;
+    };
+
+    auto push = [&](int value) {
+        int px = std::max(0, code_ctr[value] - 1);
+        cost -= px * px;
+        code_ctr[value]++;
+        int nx = std::max(0, code_ctr[value] - 1);
+        cost += nx * nx;
+    };
+
+    // cands から 1 つ点を選び、その点の値を [0,Q) でランダム変更
+    auto change = [&](int idx, int value) {
+        int pcost = cost;
+        assert(idx < cands.size());
+        auto [y, x] = cands[idx];
+        assert(grid[y][x] != value);
+        int diff = value - grid[y][x];
+        for (auto [i, d] : grid_to_id[y][x]) {
+            pop(codes[i]);
+            codes[i] += diff * powers[d];
+            push(codes[i]);
+        }
+        grid[y][x] = value;
+        return cost - pcost;
+    };
+
+    auto swap = [&](int idx1, int idx2) {
+        assert(idx1 != idx2);
+        auto [y1, x1] = cands[idx1];
+        auto [y2, x2] = cands[idx2];
+        int v1 = grid[y1][x1], v2 = grid[y2][x2];
+        assert(v1 != v2);
+        int diff = 0;
+        diff += change(idx1, v2);
+        diff += change(idx2, v1);
+        return diff;
+    };
+
+    int loop = 0;
+    while (cost) {
+        loop++;
+        if (!(loop & 0xFFFFF)) dump(loop, cost);
+        if (rnd.next_int(2)) {
+            int idx = rnd.next_int(cands.size());
+            auto [y, x] = cands[idx];
+            int pvalue = grid[y][x];
+            int nvalue;
+            do {
+                nvalue = rnd.next_int(Q);
+            } while (pvalue == nvalue);
+            int diff = change(idx, nvalue);
+            double temp = 0.2;
+            double prob = exp(-diff / temp);
+            if (rnd.next_double() > prob) change(idx, pvalue);
+        }
+        else {
+            int idx1, idx2;
+            do {
+                idx1 = rnd.next_int(cands.size());
+                idx2 = rnd.next_int(cands.size());
+            } while (idx1 == idx2);
+            auto [y1, x1] = cands[idx1];
+            auto [y2, x2] = cands[idx2];
+            if (grid[y1][x1] == grid[y2][x2]) continue;
+            int diff = swap(idx1, idx2);
+            double temp = 0.2;
+            double prob = exp(-diff / temp);
+            if (rnd.next_double() > prob) swap(idx1, idx2);
+        }
+    }
+    dump(loop);
+    dump(codes);
+    dump(code_ctr);
+}
+
+int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+
+#ifdef HAVE_OPENCV_HIGHGUI
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
+#endif
+
+    int L = 10, N = 64, Q = 4, D = 3;
+    auto pos = choose_positions(L, N, 4);
+    find_unique_encoding_grid(pos, L, Q, D);
 
     return 0;
 }

@@ -461,19 +461,16 @@ struct LocalJudge : Judge {
 constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
 constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
 
-std::vector<std::vector<int>> find_unique_encoded_grid(
+std::vector<std::vector<int>> find_unique_encoding_grid(
     const std::vector<Pos>& pos,
     int L, // grid size
     int Q, // number of quantization
     int D, // number of neighbors
-    bool align_parity,
     double duration
 ) {
     Timer timer;
 
     const int N = pos.size();
-
-    assert(N * (align_parity ? 2 : 1) <= (int)pow(Q, D));
 
     std::vector<int> powers({ 1 });
     while (powers.size() < D) {
@@ -503,7 +500,6 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
     }
 
     std::vector<int> codes(N);
-    std::vector<bool> parity(N);
     std::vector<int> code_ctr((int)pow(Q, D));
     for (int i = 0; i < N; i++) {
         auto [y, x] = pos[i];
@@ -511,7 +507,6 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         for (int d = 0; d < D; d++) {
             int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
             code += grid[ny][nx] * powers[d];
-            parity[i] = parity[i] ^ (grid[ny][nx] & 1);
         }
         codes[i] = code;
         code_ctr[code]++;
@@ -522,11 +517,8 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         int x = std::max(0, c - 1);
         cost += x * x;
     }
-    if (align_parity) {
-        for (auto p : parity) {
-            cost += p; // odd: penalty
-        }
-    }
+    dump(code_ctr);
+    dump(cost);
 
     auto pop = [&](int value) {
         assert(code_ctr[value]);
@@ -552,13 +544,10 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         auto [y, x] = cands[idx];
         assert(grid[y][x] != value);
         int diff = value - grid[y][x];
-        bool parity_changed = align_parity & (grid[y][x] ^ value) & 1;
         for (auto [i, d] : grid_to_id[y][x]) {
             pop(codes[i]);
             codes[i] += diff * powers[d];
             push(codes[i]);
-            cost += parity_changed ? (parity[i] ? -1 : 1) : 0;
-            parity[i] = parity_changed ? !parity[i] : parity[i];
         }
         grid[y][x] = value;
         return cost - pcost;
@@ -579,7 +568,7 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
     int loop = 0;
     while (timer.elapsed_ms() < duration && cost) {
         loop++;
-        //if (!(loop & 0xFFFFF)) dump(loop, cost);
+        if (!(loop & 0xFFFFF)) dump(loop, cost);
         if (rnd.next_int(2)) {
             int idx = rnd.next_int(cands.size());
             auto [y, x] = cands[idx];
@@ -609,11 +598,14 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         }
     }
     if (cost) return {};
+    dump(loop);
+    dump(codes);
+    dump(code_ctr);
 
     return grid;
 }
 
-std::pair<int, std::vector<std::vector<int>>> manage_to_find_unique_encoded_grid(
+std::pair<int, std::vector<std::vector<int>>> manage_to_find_unique_encoding_grid(
     const std::vector<Pos>& pos,
     int L, // grid size
     int Q, // number of quantization
@@ -626,7 +618,7 @@ std::pair<int, std::vector<std::vector<int>>> manage_to_find_unique_encoded_grid
         NN *= Q;
     }
     while (true) {
-        auto grid = find_unique_encoded_grid(pos, L, Q, D, false, duration);
+        auto grid = find_unique_encoding_grid(pos, L, Q, D, duration);
         if (!grid.empty()) return { D, grid };
         D++;
     }
@@ -715,7 +707,7 @@ struct Solver {
     std::vector<std::vector<int>> create_temperature() {
 
         std::vector<std::vector<int>> temperature;
-        std::tie(num_neighbors, temperature) = manage_to_find_unique_encoded_grid(landing_pos, L, num_quantize, 500.0);
+        std::tie(num_neighbors, temperature) = manage_to_find_unique_encoding_grid(landing_pos, L, num_quantize, 500.0);
 
         auto fixed = make_vector(false, L, L);
         for (int i = 0; i < N; i++) {

@@ -158,50 +158,10 @@ struct Pos {
     int y, x;
     Pos(int y = 0, int x = 0) : y(y), x(x) {}
 };
-std::istream& operator>>(std::istream& in, Pos& pos) {
-    in >> pos.y >> pos.x;
-    return in;
-}
 
 struct Input {
-
     int L, N, S;
     std::vector<Pos> landing_pos;
-
-    void load(std::istream& in) {
-        in >> L >> N >> S;
-        landing_pos.resize(N);
-        in >> landing_pos;
-    }
-
-    void generate(std::mt19937_64& engine, int L, int N, int S) {
-        std::uniform_int_distribution<> dist_int;
-        if (L == -1) L = dist_int(engine) % 41 + 10;
-        if (N == -1) N = dist_int(engine) % 41 + 60;
-        if (S == -1) {
-            S = dist_int(engine) % 30 + 1;
-            S *= S;
-        }
-        for (int y = 0; y < L; y++) {
-            for (int x = 0; x < L; x++) {
-                landing_pos.emplace_back(y, x);
-            }
-        }
-        std::shuffle(landing_pos.begin(), landing_pos.end(), engine);
-        landing_pos.erase(landing_pos.begin() + N, landing_pos.end());
-    }
-
-    Input(std::istream& in) { load(in); }
-
-    Input(const std::string& input_file) {
-        std::ifstream in(input_file);
-        load(in);
-    }
-
-    Input(std::mt19937_64& engine, int L, int N, int S) {
-        generate(engine, L, N, S);
-    }
-
 };
 
 struct Metrics {
@@ -225,7 +185,7 @@ struct Judge;
 using JudgePtr = std::shared_ptr<Judge>;
 struct Judge {
 
-    virtual const Input& get_input() const = 0;
+    virtual Input get_input() const = 0;
     virtual void set_temperature(const Grid<int>& temperature) = 0;
     virtual int measure(int i, int y, int x) = 0;
     virtual double measure(int i, int y, int x, int iter) = 0;
@@ -238,11 +198,16 @@ struct ServerJudge;
 using ServerJudgePtr = std::shared_ptr<ServerJudge>;
 struct ServerJudge : Judge {
 
-    const Input input;
-
-    ServerJudge() : input(std::cin) {}
-
-    const Input& get_input() const { return input; }
+    Input get_input() const {
+        int L, N, S;
+        std::vector<Pos> landing_pos;
+        std::cin >> L >> N >> S;
+        landing_pos.resize(N);
+        for (int i = 0; i < N; i++) {
+            std::cin >> landing_pos[i].y >> landing_pos[i].x;
+        }
+        return { L, N, S, landing_pos };
+    }
 
     void set_temperature(const Grid<int>& temperature) override {
         for (const auto& row : temperature) {
@@ -292,7 +257,7 @@ struct FileJudge : Judge {
     const std::string input_file;
     const std::string output_file;
 
-    const Input input;
+    Input input;
     std::vector<int> A;
     std::vector<int> F;
 
@@ -309,16 +274,20 @@ struct FileJudge : Judge {
     int64_t score = 0;
 
     FileJudge(const std::string& input_file_, const std::string& output_file_)
-        : input_file(input_file_), output_file(output_file_), input(input_file) {
+        : input_file(input_file_), output_file(output_file_) {
         std::ifstream in(input_file);
-        { Input tmp(in); } // dry load
+        in >> input.L >> input.N >> input.S;
+        input.landing_pos.resize(input.N);
+        for (int i = 0; i < input.N; i++) {
+            in >> input.landing_pos[i].y >> input.landing_pos[i].x;
+        }
         A.resize(input.N);
         F.resize(10000);
         in >> A >> F;
         in.close();
     }
 
-    const Input& get_input() const { return input; }
+    Input get_input() const { return input; }
 
     void set_temperature(const Grid<int>& temperature_) override {
         temperature = temperature_;
@@ -358,8 +327,6 @@ struct FileJudge : Judge {
             wrong += A[i] != estimate[i];
         }
         score = (int64_t)ceil(1e14 * pow(0.8, wrong) / (1e5 + placement_cost + measurement_cost));
-        dump(A);
-        dump(estimate);
         // dump(placement_cost, measurement_cost, wrong, score);
     }
 
@@ -390,9 +357,7 @@ struct LocalJudge;
 using LocalJudgePtr = std::shared_ptr<LocalJudge>;
 struct LocalJudge : Judge {
 
-    std::mt19937_64 engine;
-    const Input input;
-
+    Input input;
     std::vector<int> A;
     std::vector<int> F;
 
@@ -408,10 +373,33 @@ struct LocalJudge : Judge {
     int wrong = 0;
     int64_t score = 0;
 
-    LocalJudge(int seed = 0, int L = -1, int N = -1, int S = -1) : engine(seed), input(engine, L, N, S) {
+    LocalJudge(int seed = 0, int L = -1, int N = -1, int S = -1) {
+        std::mt19937_64 engine(seed);
+        std::uniform_int_distribution<> dist_int;
+
+        if (L == -1) L = dist_int(engine) % 41 + 10;
+        if (N == -1) N = dist_int(engine) % 41 + 60;
+        if (S == -1) {
+            S = dist_int(engine) % 30 + 1;
+            S *= S;
+        }
+        input.L = L;
+        input.N = N;
+        input.S = S;
+
+        std::vector<Pos> cands;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                cands.emplace_back(y, x);
+            }
+        }
+        std::shuffle(cands.begin(), cands.end(), engine);
+        input.landing_pos = std::vector<Pos>(cands.begin(), cands.begin() + N);
+
         A.resize(input.N);
         std::iota(A.begin(), A.end(), 0);
         std::shuffle(A.begin(), A.end(), engine);
+
         std::normal_distribution<> dist_norm(0.0, S);
         F.resize(10000);
         for (int i = 0; i < 10000; i++) {
@@ -419,7 +407,7 @@ struct LocalJudge : Judge {
         }
     }
 
-    const Input& get_input() const { return input; }
+    Input get_input() const { return input; }
 
     void set_temperature(const Grid<int>& temperature_) override {
         temperature = temperature_;
@@ -725,8 +713,6 @@ struct Solver {
 
     Timer timer;
 
-    /* ctor */
-
     JudgePtr judge;
     const Input input;
     const int L;
@@ -738,8 +724,6 @@ struct Solver {
     int intercept;
     int slope;
     int num_trial;
-
-    /* create temperature */
 
     FindGridResult find_grid_result;
 
@@ -862,6 +846,8 @@ struct Solver {
         return temperature;
     }
 
+
+
     std::vector<int> predict(const Grid<int>& temperature) {
 
         int num_neighbors = find_grid_result.num_neighbors;
@@ -895,39 +881,37 @@ struct Solver {
         };
 
         int additional_trial = 0;
-        auto sample = [&](int i_in, std::vector<int>& ctrs, std::vector<int>& sums, bool additional) {
-            for (int d = 0; d < num_neighbors; d++) {
-                additional_trial += additional;
-                ctrs[d]++;
-                sums[d] += judge->measure(i_in, dy[d], dx[d]);
-            }
-        };
-
         for (int i_in = 0; i_in < N; i_in++) {
-
             std::vector<int> ctrs(num_neighbors);
             std::vector<int> sums(num_neighbors);
-
-            for (int t = 0; t < num_trial; t++) {
-                sample(i_in, ctrs, sums, false);
+            for (int d = 0; d < num_neighbors; d++) {
+                for (int t = 0; t < num_trial; t++) {
+                    ctrs[d]++;
+                    sums[d] += judge->measure(i_in, dy[d], dx[d]);
+                }
             }
-
             if (align_parity) {
                 if (!check_parity(i_in, ctrs, sums)) {
                     dump("parity check failed", i_in);
                 }
                 while (!check_parity(i_in, ctrs, sums)) {
-                    sample(i_in, ctrs, sums, true);
+                    for (int d = 0; d < num_neighbors; d++) {
+                        additional_trial++;
+                        ctrs[d]++;
+                        sums[d] += judge->measure(i_in, dy[d], dx[d]);
+                    }
                 }
             }
-
             if (!check_code_match(i_in, ctrs, sums)) {
                 dump("code match failed", i_in);
             }
             while (!check_code_match(i_in, ctrs, sums)) {
-                sample(i_in, ctrs, sums, true);
+                for (int d = 0; d < num_neighbors; d++) {
+                    additional_trial++;
+                    ctrs[d]++;
+                    sums[d] += judge->measure(i_in, dy[d], dx[d]);
+                }
             }
-
             int best_hit = -1, best_id = -1;
             for (int i_out = 0; i_out < N; i_out++) {
                 auto [y, x] = landing_pos[i_out];
@@ -1017,8 +1001,6 @@ void batch_execution() {
     //}
 }
 
-
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
 #ifdef HAVE_OPENCV_HIGHGUI
@@ -1030,12 +1012,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     JudgePtr judge;
 
-    if (false) {
+    if (true) {
         judge = std::make_shared<ServerJudge>();
     }
     else if(true) {
-        std::string input_file("../../tools_win/in/0073.txt");
-        std::string output_file("../../tools_win/out/0073.txt");
+        std::string input_file("../../tools_win/in/0005.txt");
+        std::string output_file("../../tools_win/out/0005.txt");
         judge = std::make_shared<FileJudge>(input_file, output_file);
     }
     else {

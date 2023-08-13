@@ -48,7 +48,7 @@ iosetup(true); // set false when solving interective problems
 /** string formatter **/
 template<typename... Ts> std::string format(const std::string& f, Ts... t) { size_t l = std::snprintf(nullptr, 0, f.c_str(), t...); std::vector<char> b(l + 1); std::snprintf(&b[0], l + 1, f.c_str(), t...); return std::string(&b[0], &b[0] + l); }
 /** dump **/
-#define ENABLE_DUMP
+//#define ENABLE_DUMP
 #define DUMPOUT std::cerr
 std::ostringstream DUMPBUF;
 #ifdef ENABLE_DUMP
@@ -158,50 +158,10 @@ struct Pos {
     int y, x;
     Pos(int y = 0, int x = 0) : y(y), x(x) {}
 };
-std::istream& operator>>(std::istream& in, Pos& pos) {
-    in >> pos.y >> pos.x;
-    return in;
-}
 
 struct Input {
-
     int L, N, S;
     std::vector<Pos> landing_pos;
-
-    void load(std::istream& in) {
-        in >> L >> N >> S;
-        landing_pos.resize(N);
-        in >> landing_pos;
-    }
-
-    void generate(std::mt19937_64& engine, int L, int N, int S) {
-        std::uniform_int_distribution<> dist_int;
-        if (L == -1) L = dist_int(engine) % 41 + 10;
-        if (N == -1) N = dist_int(engine) % 41 + 60;
-        if (S == -1) {
-            S = dist_int(engine) % 30 + 1;
-            S *= S;
-        }
-        for (int y = 0; y < L; y++) {
-            for (int x = 0; x < L; x++) {
-                landing_pos.emplace_back(y, x);
-            }
-        }
-        std::shuffle(landing_pos.begin(), landing_pos.end(), engine);
-        landing_pos.erase(landing_pos.begin() + N, landing_pos.end());
-    }
-
-    Input(std::istream& in) { load(in); }
-
-    Input(const std::string& input_file) {
-        std::ifstream in(input_file);
-        load(in);
-    }
-
-    Input(std::mt19937_64& engine, int L, int N, int S) {
-        generate(engine, L, N, S);
-    }
-
 };
 
 struct Metrics {
@@ -225,7 +185,7 @@ struct Judge;
 using JudgePtr = std::shared_ptr<Judge>;
 struct Judge {
 
-    virtual const Input& get_input() const = 0;
+    virtual Input get_input() const = 0;
     virtual void set_temperature(const Grid<int>& temperature) = 0;
     virtual int measure(int i, int y, int x) = 0;
     virtual double measure(int i, int y, int x, int iter) = 0;
@@ -238,11 +198,16 @@ struct ServerJudge;
 using ServerJudgePtr = std::shared_ptr<ServerJudge>;
 struct ServerJudge : Judge {
 
-    const Input input;
-
-    ServerJudge() : input(std::cin) {}
-
-    const Input& get_input() const { return input; }
+    Input get_input() const {
+        int L, N, S;
+        std::vector<Pos> landing_pos;
+        std::cin >> L >> N >> S;
+        landing_pos.resize(N);
+        for (int i = 0; i < N; i++) {
+            std::cin >> landing_pos[i].y >> landing_pos[i].x;
+        }
+        return { L, N, S, landing_pos };
+    }
 
     void set_temperature(const Grid<int>& temperature) override {
         for (const auto& row : temperature) {
@@ -292,7 +257,7 @@ struct FileJudge : Judge {
     const std::string input_file;
     const std::string output_file;
 
-    const Input input;
+    Input input;
     std::vector<int> A;
     std::vector<int> F;
 
@@ -309,16 +274,20 @@ struct FileJudge : Judge {
     int64_t score = 0;
 
     FileJudge(const std::string& input_file_, const std::string& output_file_)
-        : input_file(input_file_), output_file(output_file_), input(input_file) {
+        : input_file(input_file_), output_file(output_file_) {
         std::ifstream in(input_file);
-        { Input tmp(in); } // dry load
+        in >> input.L >> input.N >> input.S;
+        input.landing_pos.resize(input.N);
+        for (int i = 0; i < input.N; i++) {
+            in >> input.landing_pos[i].y >> input.landing_pos[i].x;
+        }
         A.resize(input.N);
         F.resize(10000);
         in >> A >> F;
         in.close();
     }
 
-    const Input& get_input() const { return input; }
+    Input get_input() const { return input; }
 
     void set_temperature(const Grid<int>& temperature_) override {
         temperature = temperature_;
@@ -358,8 +327,6 @@ struct FileJudge : Judge {
             wrong += A[i] != estimate[i];
         }
         score = (int64_t)ceil(1e14 * pow(0.8, wrong) / (1e5 + placement_cost + measurement_cost));
-        dump(A);
-        dump(estimate);
         // dump(placement_cost, measurement_cost, wrong, score);
     }
 
@@ -390,9 +357,7 @@ struct LocalJudge;
 using LocalJudgePtr = std::shared_ptr<LocalJudge>;
 struct LocalJudge : Judge {
 
-    std::mt19937_64 engine;
-    const Input input;
-
+    Input input;
     std::vector<int> A;
     std::vector<int> F;
 
@@ -408,10 +373,33 @@ struct LocalJudge : Judge {
     int wrong = 0;
     int64_t score = 0;
 
-    LocalJudge(int seed = 0, int L = -1, int N = -1, int S = -1) : engine(seed), input(engine, L, N, S) {
+    LocalJudge(int seed = 0, int L = -1, int N = -1, int S = -1) {
+        std::mt19937_64 engine(seed);
+        std::uniform_int_distribution<> dist_int;
+
+        if (L == -1) L = dist_int(engine) % 41 + 10;
+        if (N == -1) N = dist_int(engine) % 41 + 60;
+        if (S == -1) {
+            S = dist_int(engine) % 30 + 1;
+            S *= S;
+        }
+        input.L = L;
+        input.N = N;
+        input.S = S;
+
+        std::vector<Pos> cands;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                cands.emplace_back(y, x);
+            }
+        }
+        std::shuffle(cands.begin(), cands.end(), engine);
+        input.landing_pos = std::vector<Pos>(cands.begin(), cands.begin() + N);
+
         A.resize(input.N);
         std::iota(A.begin(), A.end(), 0);
         std::shuffle(A.begin(), A.end(), engine);
+
         std::normal_distribution<> dist_norm(0.0, S);
         F.resize(10000);
         for (int i = 0; i < 10000; i++) {
@@ -419,7 +407,7 @@ struct LocalJudge : Judge {
         }
     }
 
-    const Input& get_input() const { return input; }
+    Input get_input() const { return input; }
 
     void set_temperature(const Grid<int>& temperature_) override {
         temperature = temperature_;
@@ -470,22 +458,13 @@ struct LocalJudge : Judge {
 
 
 
-struct FindGridResult {
-    bool success = false;
-    int num_neighbors = -1;
-    bool align_parity = false;
-    Grid<int> grid;
-    std::vector<int> codes;
-    std::vector<bool> parities;
-};
-
 // 6 2 5
 // 3 0 1
 // 7 4 8
 constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
 constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
 
-FindGridResult find_unique_encoded_grid(
+Grid<int> find_unique_encoded_grid(
     const std::vector<Pos>& pos,
     int L, // grid size
     int Q, // number of quantization
@@ -494,8 +473,6 @@ FindGridResult find_unique_encoded_grid(
     double duration
 ) {
     Timer timer;
-
-    FindGridResult res;
 
     const int N = pos.size();
 
@@ -529,7 +506,7 @@ FindGridResult find_unique_encoded_grid(
     }
 
     std::vector<int> codes(N);
-    std::vector<bool> parities(N);
+    std::vector<bool> parity(N);
     std::vector<int> code_ctr((int)pow(Q, D));
     for (int i = 0; i < N; i++) {
         auto [y, x] = pos[i];
@@ -537,7 +514,7 @@ FindGridResult find_unique_encoded_grid(
         for (int d = 0; d < D; d++) {
             int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
             code += grid[ny][nx] * powers[d];
-            parities[i] = parities[i] ^ (grid[ny][nx] & 1);
+            parity[i] = parity[i] ^ (grid[ny][nx] & 1);
         }
         codes[i] = code;
         code_ctr[code]++;
@@ -549,7 +526,7 @@ FindGridResult find_unique_encoded_grid(
         cost += x * x;
     }
     if (align_parity) {
-        for (auto p : parities) {
+        for (auto p : parity) {
             cost += p; // odd: penalty
         }
     }
@@ -583,8 +560,8 @@ FindGridResult find_unique_encoded_grid(
             pop(codes[i]);
             codes[i] += diff * powers[d];
             push(codes[i]);
-            cost += parity_changed ? (parities[i] ? -1 : 1) : 0;
-            parities[i] = parity_changed ? !parities[i] : parities[i];
+            cost += parity_changed ? (parity[i] ? -1 : 1) : 0;
+            parity[i] = parity_changed ? !parity[i] : parity[i];
         }
         grid[y][x] = value;
         return cost - pcost;
@@ -634,28 +611,28 @@ FindGridResult find_unique_encoded_grid(
             if (rnd.next_double() > prob) swap(idx1, idx2);
         }
     }
-    if (cost) return res;
+    if (cost) return {};
 
-    res.success = true;
-    res.num_neighbors = D;
-    res.align_parity = align_parity;
-    res.grid = grid;
-    res.codes = codes;
-    res.parities = parities;
-
-    return res;
+    return grid;
 }
 
-FindGridResult manage_to_find_unique_encoded_grid(
+auto manage_to_find_unique_encoded_grid(
     const std::vector<Pos>& pos,
     int L, // grid size
     int Q, // number of quantization
     double duration
 ) {
 
+    struct Result {
+        bool success = false;
+        int num_neighbors = -1;
+        bool align_parity = false;
+        Grid<int> grid;
+    } res;
+
     const int N = pos.size();
 
-    if (true) { // align parity
+    { // align parity
         int D = 0, NN = 1;
         while (NN < N * 2) {
             D++;
@@ -663,9 +640,14 @@ FindGridResult manage_to_find_unique_encoded_grid(
         }
         int DMAX = std::min(D + 1, 9);
         while (D <= DMAX) {
-            dump(L, Q, D, "parity");
-            auto res = find_unique_encoded_grid(pos, L, Q, D, true, duration);
-            if (res.success) return res;
+            auto grid = find_unique_encoded_grid(pos, L, Q, D, true, duration);
+            if (!grid.empty()) {
+                res.success = true;
+                res.num_neighbors = D;
+                res.align_parity = true;
+                res.grid = grid;
+                return res;
+            }
             D++;
         }
     }
@@ -677,14 +659,19 @@ FindGridResult manage_to_find_unique_encoded_grid(
             NN *= Q;
         }
         while (true) {
-            dump(L, Q, D);
-            auto res = find_unique_encoded_grid(pos, L, Q, D, false, duration);
-            if (res.success) return res;
+            auto grid = find_unique_encoded_grid(pos, L, Q, D, false, duration);
+            if (!grid.empty()) {
+                res.success = true;
+                res.num_neighbors = D;
+                res.align_parity = false;
+                res.grid = grid;
+                return res;
+            }
             D++;
         }
     }
 
-    return FindGridResult();
+    return res;
 }
 
 int params[31][4] = {
@@ -725,8 +712,6 @@ struct Solver {
 
     Timer timer;
 
-    /* ctor */
-
     JudgePtr judge;
     const Input input;
     const int L;
@@ -739,9 +724,8 @@ struct Solver {
     int slope;
     int num_trial;
 
-    /* create temperature */
-
-    FindGridResult find_grid_result;
+    int num_neighbors;
+    bool align_parity;
 
     Solver(JudgePtr judge_, const Input& input_) :
         judge(judge_), input(input_),
@@ -770,34 +754,13 @@ struct Solver {
         }
     }
 
-    int index_to_quantized_value(int idx) const {
-        return intercept + idx * slope;
-    }
-
-    int quantized_value_to_index(int qval) const {
-        return (qval - intercept) / slope;
-    }
-
-    int quantize(double val) const {
-        double min_diff = 1e9, min_qval = -1;
-        for (int idx = 0; idx < num_quantize; idx++) {
-            double qval = index_to_quantized_value(idx);
-            double diff = abs(val - qval);
-            if (chmin(min_diff, diff)) {
-                min_qval = qval;
-            }
-        }
-        return min_qval;
-    }
-
     Grid<int> create_temperature() {
 
-        find_grid_result = manage_to_find_unique_encoded_grid(landing_pos, L, num_quantize, 500.0);
+        auto find_grid_result = manage_to_find_unique_encoded_grid(landing_pos, L, num_quantize, 500.0);
         assert(find_grid_result.success);
 
-        dump(find_grid_result.codes);
-
-        int num_neighbors = find_grid_result.num_neighbors;
+        num_neighbors = find_grid_result.num_neighbors;
+        align_parity = find_grid_result.align_parity;
 
         auto temperature = find_grid_result.grid;
 
@@ -813,10 +776,10 @@ struct Solver {
         for (int y = 0; y < L; y++) {
             for (int x = 0; x < L; x++) {
                 if (fixed[y][x]) {
-                    temperature[y][x] = index_to_quantized_value(temperature[y][x]);
+                    temperature[y][x] = intercept + temperature[y][x] * slope;
                 }
                 else {
-                    temperature[y][x] = index_to_quantized_value(0);
+                    temperature[y][x] = intercept;
                 }
             }
         }
@@ -863,94 +826,47 @@ struct Solver {
     }
 
     std::vector<int> predict(const Grid<int>& temperature) {
-
-        int num_neighbors = find_grid_result.num_neighbors;
-        bool align_parity = find_grid_result.align_parity;
-
         std::vector<int> estimate(N);
 
         {
             int K = num_neighbors * N;
-            chmin(num_trial, (align_parity ? 9000 : 9500) / K);
+            chmin(num_trial, 10000 / K);
         }
 
-        auto check_parity = [&](int i_in, const std::vector<int>& ctrs, const std::vector<int>& sums) {
-            bool parity = find_grid_result.parities[i_in];
-            int index_sum = 0;
-            for (int d = 0; d < num_neighbors; d++) {
-                index_sum += quantized_value_to_index(quantize((double)sums[d] / ctrs[d]));
-            }
-            return parity == (index_sum & 1);
-        };
-
-        auto check_code_match = [&](int i_in, const std::vector<int>& ctrs, const std::vector<int>& sums) {
-            auto& codes = find_grid_result.codes;
-            int code = 0;
-            for (int d = num_neighbors - 1; d >= 0; d--) {
-                code *= num_quantize;
-                code += quantized_value_to_index(quantize((double)sums[d] / ctrs[d]));
-            }
-            bool found = std::count(codes.begin(), codes.end(), code);
-            return found;
-        };
-
-        int additional_trial = 0;
-        auto sample = [&](int i_in, std::vector<int>& ctrs, std::vector<int>& sums, bool additional) {
-            for (int d = 0; d < num_neighbors; d++) {
-                additional_trial += additional;
-                ctrs[d]++;
-                sums[d] += judge->measure(i_in, dy[d], dx[d]);
-            }
-        };
+        std::vector<int> qval(num_quantize);
+        for (int q = 0; q < num_quantize; q++) {
+            qval[q] = intercept + slope * q;
+        }
+        dump(qval);
 
         for (int i_in = 0; i_in < N; i_in++) {
-
-            std::vector<int> ctrs(num_neighbors);
-            std::vector<int> sums(num_neighbors);
-
-            for (int t = 0; t < num_trial; t++) {
-                sample(i_in, ctrs, sums, false);
-            }
-
-            if (align_parity) {
-                if (!check_parity(i_in, ctrs, sums)) {
-                    dump("parity check failed", i_in);
+            std::vector<int> temps(num_neighbors);
+            for (int d = 0; d < num_neighbors; d++) {
+                auto measured_value = judge->measure(i_in, dy[d], dx[d], num_trial);
+                double min_diff = 1e9, min_q = -1;
+                for (int q = 0; q < num_quantize; q++) {
+                    if (chmin(min_diff, fabs(measured_value - qval[q]))) {
+                        min_q = q;
+                    }
                 }
-                while (!check_parity(i_in, ctrs, sums)) {
-                    sample(i_in, ctrs, sums, true);
-                }
+                temps[d] = qval[min_q];
             }
-
-            if (!check_code_match(i_in, ctrs, sums)) {
-                dump("code match failed", i_in);
-            }
-            while (!check_code_match(i_in, ctrs, sums)) {
-                sample(i_in, ctrs, sums, true);
-            }
-
+            dump(i_in, temps);
             int best_hit = -1, best_id = -1;
             for (int i_out = 0; i_out < N; i_out++) {
                 auto [y, x] = landing_pos[i_out];
                 int hit = 0;
                 for (int d = 0; d < num_neighbors; d++) {
                     int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
-                    hit += quantize((double)sums[d] / ctrs[d]) == temperature[ny][nx];
+                    hit += temps[d] == temperature[ny][nx];
                 }
                 if (chmax(best_hit, hit)) {
                     best_id = i_out;
                 }
             }
-            dump(i_in, best_hit);
             estimate[i_in] = best_id;
         }
-        dump(additional_trial);
-
         dump(estimate);
-        {
-            auto e(estimate);
-            std::sort(e.begin(), e.end());
-            dump(e);
-        }
         return estimate;
     }
 
@@ -1017,8 +933,6 @@ void batch_execution() {
     //}
 }
 
-
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
 #ifdef HAVE_OPENCV_HIGHGUI
@@ -1030,12 +944,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     JudgePtr judge;
 
-    if (false) {
+    if (true) {
         judge = std::make_shared<ServerJudge>();
     }
     else if(true) {
-        std::string input_file("../../tools_win/in/0073.txt");
-        std::string output_file("../../tools_win/out/0073.txt");
+        std::string input_file("../../tools_win/in/0002.txt");
+        std::string output_file("../../tools_win/out/0002.txt");
         judge = std::make_shared<FileJudge>(input_file, output_file);
     }
     else {

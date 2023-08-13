@@ -757,7 +757,7 @@ void find_valid_grid() {
     int L = 10;
     for (int seed = 0; seed < 100; seed++) {
         auto pos = choose_positions(L, 100, seed);
-        auto grid = find_unique_encoded_grid(pos, L, 2, 8, false, 500);
+        auto grid = find_unique_encoded_grid(pos, L, 10, 3, true, 500);
         //auto grid = find_unique_encoded_grid(pos, L, 2, 8, 500);
         std::cerr << seed << ": " << (grid.empty() ? "Failed" : "Succeeded") << '\n';
     }

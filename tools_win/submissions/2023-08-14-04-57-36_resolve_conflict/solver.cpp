@@ -48,7 +48,7 @@ iosetup(true); // set false when solving interective problems
 /** string formatter **/
 template<typename... Ts> std::string format(const std::string& f, Ts... t) { size_t l = std::snprintf(nullptr, 0, f.c_str(), t...); std::vector<char> b(l + 1); std::snprintf(&b[0], l + 1, f.c_str(), t...); return std::string(&b[0], &b[0] + l); }
 /** dump **/
-//#define ENABLE_DUMP
+#define ENABLE_DUMP
 #define DUMPOUT std::cerr
 std::ostringstream DUMPBUF;
 #ifdef ENABLE_DUMP
@@ -1110,7 +1110,7 @@ void batch_execution() {
 
 #pragma omp parallel for num_threads(10)
     for (int seed = 0; seed < num_seeds; seed++) {
-        auto judge = std::make_shared<LocalJudge>(seed, 10, 100, 900);
+        auto judge = std::make_shared<LocalJudge>(seed, -1, -1, 900);
         auto metrics_opt = solve(judge);
 #pragma omp critical(crit_sct)
         if (metrics_opt) {

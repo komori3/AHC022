@@ -15,7 +15,6 @@ ROOT_DIR = os.path.dirname(TOOLS_DIR)
 
 INPUT_DIR = os.path.join(TOOLS_DIR, 'in')
 OUTPUT_DIR = os.path.join(TOOLS_DIR, 'out')
-ERROR_DIR = os.path.join(TOOLS_DIR, 'err')
 
 SOLVER_DIR = os.path.join(ROOT_DIR, 'vs', 'solver')
 SOURCE_FILE = os.path.join(SOLVER_DIR, 'src', 'solver.cpp')
@@ -49,16 +48,13 @@ if __name__ == '__main__':
     assert not os.path.exists(os.path.join(TOOLS_DIR, 'submissions', tag))
 
     shutil.rmtree(OUTPUT_DIR)
-    shutil.rmtree(ERROR_DIR)
-
     os.makedirs(OUTPUT_DIR)
-    os.makedirs(ERROR_DIR)
 
     cmds = []
     for seed in range(0, 100):
         input_file = os.path.join(INPUT_DIR, f'{seed:04d}.txt')
-        output_file = os.path.join(OUTPUT_DIR, f'{seed:04d}.txt')
-        error_file = os.path.join(ERROR_DIR, f'{seed:04d}.txt')
+        output_file = os.path.join(OUTPUT_DIR, f'{seed:04d}.out')
+        error_file = os.path.join(OUTPUT_DIR, f'{seed:04d}.err')
         cmd = f'{TESTER_BIN} {EXEC_BIN} < {input_file} > {output_file} 2> {error_file}'
         cmds.append(cmd)
 
@@ -68,7 +64,7 @@ if __name__ == '__main__':
     results = []
     key_list = ['Score', 'Number of wrong answers', 'Placement cost', 'Measurement cost', 'Measurement count']
     for seed in range(0, 100):
-        error_file = os.path.join(ERROR_DIR, f'{seed:04d}.txt')
+        error_file = os.path.join(OUTPUT_DIR, f'{seed:04d}.err')
         result = dict()
         result['Seed'] = seed
         result['Score'] = -1
@@ -78,7 +74,6 @@ if __name__ == '__main__':
     submissions_dir = os.path.join('submissions', tag)
     os.makedirs(submissions_dir)
     shutil.copytree(OUTPUT_DIR, os.path.join(submissions_dir, 'out'))
-    shutil.copytree(ERROR_DIR, os.path.join(submissions_dir, 'err'))
     shutil.copy2(SOURCE_FILE, submissions_dir)
     with open(os.path.join(submissions_dir, 'results.yaml'), 'w', encoding='utf-8') as f:
         yaml.dump(results, f, sort_keys=False)

@@ -48,7 +48,7 @@ iosetup(true); // set false when solving interective problems
 /** string formatter **/
 template<typename... Ts> std::string format(const std::string& f, Ts... t) { size_t l = std::snprintf(nullptr, 0, f.c_str(), t...); std::vector<char> b(l + 1); std::snprintf(&b[0], l + 1, f.c_str(), t...); return std::string(&b[0], &b[0] + l); }
 /** dump **/
-#define ENABLE_DUMP
+//#define ENABLE_DUMP
 #define DUMPOUT std::cerr
 std::ostringstream DUMPBUF;
 #ifdef ENABLE_DUMP
@@ -162,9 +162,6 @@ struct Pos {
     }
     bool operator<(const Pos& rhs) const {
         return y == rhs.y ? x < rhs.x : y < rhs.y;
-    }
-    bool operator==(const Pos& rhs) const {
-        return y == rhs.y && x == rhs.x;
     }
 };
 std::istream& operator>>(std::istream& in, Pos& pos) {
@@ -349,7 +346,7 @@ struct FileJudge : Judge {
     }
 
     int measure(int i, int y, int x) override {
-        if (turn >= 10000 || abs(y) >= input.L || abs(x) >= input.L) {
+        if (turn >= 10000) {
             std::cerr << "something went wrong. i=" << i << " y=" << y << " x=" << x << std::endl;
             exit(1);
         }
@@ -454,7 +451,7 @@ struct LocalJudge : Judge {
     }
 
     int measure(int i, int y, int x) override {
-        if (turn >= 10000 || abs(y) >= input.L || abs(x) >= input.L) {
+        if (turn >= 10000) {
             std::cerr << "something went wrong. i=" << i << " y=" << y << " x=" << x << std::endl;
             exit(1);
         }
@@ -495,38 +492,38 @@ struct LocalJudge : Judge {
 
 
 
-constexpr int params_opt[31][6] = {
-    {-1, -1, -1, -1, -1, -1},
-    {10, 500, 5, 1, 0, 1}, // 277987932.58
-    {3, 500, 17, 1, 0, 1}, // 145435528.88
-    {3, 500, 27, 1, 1, 1}, // 81829127.98
-    {3, 500, 34, 1, 1, 1}, // 50747161.62
-    {3, 400, 42, 2, 1, 1}, // 35515135.52
-    {3, 400, 48, 3, 1, 1}, // 25680772.57
-    {3, 400, 60, 3, 1, 1}, // 19496440.35
-    {3, 400, 65, 6, 1, 1}, // 14801026.97
-    {3, 400, 75, 6, 1, 1}, // 11908793.68, {2, 400, 100, 4, 1}
-    {3, 400, 90, 6, 1, 1}, // 9741940.09 {2, 400, 110, 4, 1}, // 9517008.84
-    {3, 400, 95, 10, 1, 1}, // 8054215.46 {2, 400, 130, 6, 1}, // 8035809.16
-    {2, 400, 138, 6, 1, 1}, // 6808297.14 {3, 400, 108, 10, 1}, // 6807371.75
-    {2, 400, 174, 6, 1, 1}, // 5699786.50
-    {2, 412, 176, 6, 1, 1}, // 4865456.49
-    {2, 396, 208, 6, 1, 1}, // 4115733.37
-    {2, 383, 235, 7, 1, 1}, // 3352157.54
-    {2, 365, 270, 6, 1, 2}, // 2871694.87
-    {2, 355, 290, 6, 1, 2}, // 2351195.37
-    {2, 330, 340, 6, 1, 2}, // 1997919.86
-    {2, 323, 355, 6, 1, 2}, // 1676017.20
-    {2, 308, 385, 6, 1, 2}, // 1400937.60
-    {2, 280, 440, 6, 1, 2}, // 1208175.03
-    {2, 265, 470, 6, 1, 2}, // 1008367.64
-    {2, 228, 545, 7, 1, 2}, // 864458.10
-    {2, 215, 570, 8, 1, 2}, // 729659.90
-    {2, 185, 630, 8, 1, 3}, // 609063.54
-    {2, 163, 675, 8, 1, 4}, // 529339.26
-    {2, 143, 715, 7, 1, 4}, // 452651.60
-    {2, 110, 780, 7, 1, 4}, // 385859.23
-    {2, 88, 825, 8, 1, 4}, // 352968.23
+constexpr int params_opt[31][5] = {
+    {-1, -1, -1, -1, -1},
+    {10, 500, 5, 1, 0}, // 277987932.58
+    {3, 500, 17, 1, 0}, // 145435528.88
+    {3, 500, 27, 1, 1}, // 81829127.98
+    {3, 500, 34, 1, 1}, // 50747161.62
+    {3, 400, 42, 2, 1}, // 35515135.52
+    {3, 400, 48, 3, 1}, // 25680772.57
+    {3, 400, 60, 3, 1}, // 19496440.35
+    {3, 400, 65, 6, 1}, // 14801026.97
+    {3, 400, 75, 6, 1}, // 11908793.68, {2, 400, 100, 4, 1}
+    {3, 400, 90, 6, 1}, // 9741940.09 {2, 400, 110, 4, 1}, // 9517008.84
+    {3, 400, 95, 10, 1}, // 8054215.46 {2, 400, 130, 6, 1}, // 8035809.16
+    {2, 400, 138, 6, 1}, // 6808297.14 {3, 400, 108, 10, 1}, // 6807371.75
+    {2, 400, 174, 6, 1}, // 5699786.50
+    {2, 412, 176, 6, 1}, // 4865456.49
+    {2, 396, 208, 6, 1}, // 4115733.37
+    {2, 383, 235, 7, 1}, // 3352157.54
+    {2, 365, 270, 6, 1}, // 2871694.87
+    {2, 355, 290, 6, 1}, // 2351195.37
+    {2, 330, 340, 6, 1}, // 1997919.86
+    {2, 323, 355, 6, 1}, // 1676017.20
+    {2, 308, 385, 6, 1}, // 1400937.60
+    {2, 280, 440, 6, 1}, // 1208175.03
+    {2, 265, 470, 6, 1}, // 1008367.64
+    {2, 228, 545, 7, 1}, // 864458.10
+    {2, 215, 570, 8, 1}, // 729659.90
+    {2, 185, 630, 8, 1}, // 609063.54
+    {2, 163, 675, 8, 1}, // 529339.26
+    {2, 143, 715, 7, 1}, // 452651.60
+    {2, 110, 780, 7, 1}, // 385859.23
+    {2, 88, 825, 8, 1}, // 334984.65
 };
 
 struct Params;
@@ -537,13 +534,12 @@ struct Params {
     const int slope;
     const int num_trial;
     const bool align_parity;
-    const int displacement;
-    Params(int num_quantize_, int intercept_, int slope_, int num_trial_, bool align_parity_, int displacement_)
-        : num_quantize(num_quantize_), intercept(intercept_), slope(slope_), num_trial(num_trial_), align_parity(align_parity_), displacement(displacement_) {}
+    Params(int num_quantize_, int intercept_, int slope_, int num_trial_, bool align_parity_)
+        : num_quantize(num_quantize_), intercept(intercept_), slope(slope_), num_trial(num_trial_), align_parity(align_parity_) {}
     std::string stringify() const {
         return format(
-            "{num_quantize, intercept, slope, num_trial, align_parity, displacement} = {%d, %d, %d, %d, %d, %d}",
-            num_quantize, intercept, slope, num_trial, align_parity, displacement
+            "{num_quantize, intercept, slope, num_trial, align_parity} = {%d, %d, %d, %d, %d}",
+            num_quantize, intercept, slope, num_trial, align_parity
         );
     }
 };
@@ -557,8 +553,7 @@ ParamsPtr load_params(const Input& input) {
                 params_opt[sqrtS][1],
                 params_opt[sqrtS][2],
                 params_opt[sqrtS][3],
-                params_opt[sqrtS][4],
-                params_opt[sqrtS][5]
+                params_opt[sqrtS][4]
             );
         }
     }
@@ -630,7 +625,6 @@ EncodedGridPtr find_unique_encoded_grid(
     const Quantizer& quantizer,
     int D, // number of neighbors
     bool align_parity,
-    int displacement,
     double duration
 ) {
     Timer timer;
@@ -654,34 +648,10 @@ EncodedGridPtr find_unique_encoded_grid(
         // 7 4 8
         constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
         constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
-        std::vector<Pos> tmp, mtmp;
-        while (true) {
-            if (displacement >= L) {
-                displacement--;
-                continue;
-            }
-            tmp.clear();
-            mtmp.clear();
-            bool valid = true;
-            for (int d = 0; d < D; d++) {
-                Pos p(dy[d] * displacement, dx[d] * displacement);
-                Pos mp(((p.y % L) + L) % L, ((p.x % L) + L) % L);
-                if (std::count(mtmp.begin(), mtmp.end(), mp)) {
-                    valid = false;
-                    break;
-                }
-                tmp.push_back(p);
-                mtmp.push_back(mp);
-            }
-            if (!valid) {
-                displacement--;
-                continue;
-            }
-            break;
+        for (int d = 0; d < D; d++) {
+            displacements.emplace_back(dy[d] * 5, dx[d] * 5);
         }
-        displacements = tmp;
     }
-    dump(displacements);
 
     auto grid = make_vector(0, L, L);
     auto grid_to_id = make_vector(std::vector<std::pair<int, int>>(), L, L);
@@ -814,17 +784,14 @@ EncodedGridPtr find_unique_encoded_grid(
         }
     }
 
-    if (cost) {
-        dump(cost);
-        return nullptr;
-    }
+    if (cost) return nullptr;
     return std::make_shared<EncodedGrid>(D, align_parity, grid, displacements, codes, parities);
 }
 
 EncodedGridPtr manage_to_find_unique_encoded_grid(
     const Input& input,
     const Quantizer& quantizer,
-    const ParamsPtr& params,
+    const bool align_parity,
     double duration
 ) {
 
@@ -832,7 +799,7 @@ EncodedGridPtr manage_to_find_unique_encoded_grid(
     const int N = input.N;
     const int Q = quantizer.rate;
 
-    if (params->align_parity) { // align parity
+    if (align_parity) { // align parity
         int D = 0, NN = 1;
         while (NN < N * 2) {
             D++;
@@ -841,7 +808,7 @@ EncodedGridPtr manage_to_find_unique_encoded_grid(
         int DMAX = std::min(D + 1, 9);
         while (D <= DMAX) {
             dump(L, Q, D, "parity");
-            if (auto egrid = find_unique_encoded_grid(input, quantizer, D, true, params->displacement, 500.0)) {
+            if (auto egrid = find_unique_encoded_grid(input, quantizer, D, true, 500.0)) {
                 return egrid;
             }
             D++;
@@ -854,10 +821,9 @@ EncodedGridPtr manage_to_find_unique_encoded_grid(
             D++;
             NN *= Q;
         }
-        int DMAX = 9;
-        while (D <= DMAX) {
+        while (true) {
             dump(L, Q, D);
-            if (auto egrid = find_unique_encoded_grid(input, quantizer, D, false, params->displacement, 500.0)) {
+            if (auto egrid = find_unique_encoded_grid(input, quantizer, D, false, 500.0)) {
                 return egrid;
             }
             D++;
@@ -1139,7 +1105,7 @@ std::optional<Metrics> solve(JudgePtr judge, ParamsPtr overwrite_params = nullpt
 
     Quantizer quantizer(params->num_quantize, params->intercept, params->slope);
 
-    auto egrid = manage_to_find_unique_encoded_grid(input, quantizer, params, 500.0); // max ~2sec
+    auto egrid = manage_to_find_unique_encoded_grid(input, quantizer, params->align_parity, 500.0); // max ~2sec
     assert(egrid);
 
     auto temperature = create_temperature(timer, rnd, input, egrid, quantizer);
@@ -1159,61 +1125,63 @@ void batch_execution() {
 
     double best_avg_score = -1e9;
     ParamsPtr best_params = nullptr;
+    int sqrtS = 30;
 
-    const int sqrtS = 30;
-    const int num_quantize = params_opt[sqrtS][0];
-    const int intercept = params_opt[sqrtS][1];
-    const int slope = params_opt[sqrtS][2];
-    const int num_trial = params_opt[sqrtS][3];
-    const int parity = params_opt[sqrtS][4];
-    //const int displacement = 1;
+    //for (int Q : {2/*, 3*/}) {
+        int Q = 2;
+        for (int slope = 780; slope <= 870; slope += 15) {
+            for (int num_trial = 7; num_trial <= 9; num_trial++) {
+                //for (int parity = 0; parity < 2; parity++) {
+                    int parity = 1;
+                    int intercept = 500 - slope / 2;
 
-    for (int displacement = 1; displacement <= 15; displacement++) {
+                    // grid_search
+                    std::vector<Metrics> metrics_list(num_seeds);
+                    int progress = 0;
+                    int64_t score_sum = 0;
+                    int wrong_sum = 0;
+                    int64_t placement_sum = 0;
+                    int64_t measurement_sum = 0;
+                    int count_sum = 0;
+                    int64_t min_score = INT64_MAX, max_score = INT64_MIN;
 
-        // grid_search
-        std::vector<Metrics> metrics_list(num_seeds);
-        int progress = 0;
-        int64_t score_sum = 0;
-        int wrong_sum = 0;
-        int64_t placement_sum = 0;
-        int64_t measurement_sum = 0;
-        int count_sum = 0;
-        int64_t min_score = INT64_MAX, max_score = INT64_MIN;
-        
-        auto overwrite_params = std::make_shared<Params>(num_quantize, intercept, slope, num_trial, parity, displacement);
+                    auto overwrite_params = std::make_shared<Params>(Q, intercept, slope, num_trial, parity);
 
 #pragma omp parallel for num_threads(10)
-        for (int seed = 0; seed < num_seeds; seed++) {
-            auto judge = std::make_shared<LocalJudge>(seed, -1, -1, sqrtS * sqrtS);
-            auto metrics_opt = solve(judge, overwrite_params);
+                    for (int seed = 0; seed < num_seeds; seed++) {
+                        auto judge = std::make_shared<LocalJudge>(seed, -1, -1, sqrtS * sqrtS);
+                        auto metrics_opt = solve(judge, overwrite_params);
 #pragma omp critical(crit_sct)
-            if (metrics_opt) {
-                auto metrics = *metrics_opt;
-                progress++;
-                score_sum += metrics.score;
-                wrong_sum += metrics.wrong;
-                placement_sum += metrics.placement_cost;
-                measurement_sum += metrics.measurement_cost;
-                count_sum += metrics.measurement_count;
-                chmin(min_score, metrics.score);
-                chmax(max_score, metrics.score);
-                std::cerr << format(
-                    "\rprogress=%4d/%4d, avg_score=%13.2f, avg_wrong=%5.3f, avg_placement=%13.2f, avg_measurement=%13.2f, avg_count=%7.2f, min=%11lld, max=%11lld, {%2d, %2d, %2d, %2d, %2d, %2d}",
-                    progress, num_seeds, (double)score_sum / progress, (double)wrong_sum / progress, (double)placement_sum / progress, (double)measurement_sum / progress, (double)count_sum / progress, min_score, max_score,
-                    num_quantize, intercept, slope, num_trial, parity, displacement
-                );
-                metrics_list[seed] = metrics;
+                        if (metrics_opt) {
+                            auto metrics = *metrics_opt;
+                            progress++;
+                            score_sum += metrics.score;
+                            wrong_sum += metrics.wrong;
+                            placement_sum += metrics.placement_cost;
+                            measurement_sum += metrics.measurement_cost;
+                            count_sum += metrics.measurement_count;
+                            chmin(min_score, metrics.score);
+                            chmax(max_score, metrics.score);
+                            std::cerr << format(
+                                "\rprogress=%4d/%4d, avg_score=%13.2f, avg_wrong=%5.3f, avg_placement=%13.2f, avg_measurement=%13.2f, avg_count=%7.2f, min=%11lld, max=%11lld, {%2d, %2d, %2d, %2d, %2d}",
+                                progress, num_seeds, (double)score_sum / progress, (double)wrong_sum / progress, (double)placement_sum / progress, (double)measurement_sum / progress, (double)count_sum / progress, min_score, max_score,
+                                Q, intercept, slope, num_trial, parity
+                            );
+                            metrics_list[seed] = metrics;
+                        }
+                    }
+                    std::cerr << '\n';
+
+                    double avg_score = (double)score_sum / progress;
+                    if (chmax(best_avg_score, avg_score)) {
+                        best_params = overwrite_params;
+                        std::cerr << *best_params << '\n';
+                    }
+
+                //}
             }
         }
-        std::cerr << '\n';
-
-        double avg_score = (double)score_sum / progress;
-        if (chmax(best_avg_score, avg_score)) {
-            best_params = overwrite_params;
-            std::cerr << *best_params << '\n';
-        }
-    }
-
+    //}
 }
 
 
@@ -1233,8 +1201,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         judge = std::make_shared<ServerJudge>();
     }
     else if(true) {
-        std::string input_file("../../tools_win/in/0009.txt");
-        std::string output_file("../../tools_win/out/0009.txt");
+        std::string input_file("../../tools_win/in/0073.txt");
+        std::string output_file("../../tools_win/out/0073.txt");
         judge = std::make_shared<FileJudge>(input_file, output_file);
     }
     else {

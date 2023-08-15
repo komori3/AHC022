@@ -1,5 +1,6 @@
 import os
 import yaml
+import math
 from collections import defaultdict
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,15 +44,19 @@ if __name__ == "__main__":
         with open(results_file) as f:
             submission_to_results[tag] = yaml.safe_load(f)
 
-    seed_best = defaultdict(lambda: -1)
-    for tag, results in submission_to_results.items():
-        for result in results:
-            seed_best[result['Seed']] = max(seed_best[result['Seed']], result['Score'])
+    # seed_best = defaultdict(lambda: -1)
+    # for tag, results in submission_to_results.items():
+    #     for result in results:
+    #         seed_best[result['Seed']] = max(seed_best[result['Seed']], result['Score'])
 
     dict_submission_to_total_score = defaultdict(lambda: 0.0)
     for tag, results in submission_to_results.items():
+        ctr = 0
         for result in results:
+            ctr += 1
             if result['Score'] == -1: continue
-            dict_submission_to_total_score[tag] += result['Score'] / seed_best[result['Seed']]
+            # dict_submission_to_total_score[tag] += result['Score'] / seed_best[result['Seed']]
+            dict_submission_to_total_score[tag] += math.log(result['Score'])
+        dict_submission_to_total_score[tag] /= ctr
 
     show_standings(dict_submission_to_total_score)

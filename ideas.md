@@ -17,3 +17,5 @@ placement cost を高速に計算したい
 encoded_grid を求める焼きなましでコストは二乗でなくてもよかったりする？あるいは焼きなましより賢い方法がある？線形計画？
 
 同じセルを何度も check するのはもったいない気がする　どうにかして利用できないか
+
+ローカル評価を `mean(ln(scores))` にする (https://engineering.dena.com/blog/2022/12/httf-2023-qual/)

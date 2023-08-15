@@ -157,12 +157,6 @@ inline double get_temp(double stemp, double etemp, double t, double T) {
 struct Pos {
     int y, x;
     Pos(int y = 0, int x = 0) : y(y), x(x) {}
-    std::string stringify() const {
-        return "(" + std::to_string(y) + ", " + std::to_string(x) + ")";
-    }
-    bool operator<(const Pos& rhs) const {
-        return y == rhs.y ? x < rhs.x : y < rhs.y;
-    }
 };
 std::istream& operator>>(std::istream& in, Pos& pos) {
     in >> pos.y >> pos.x;

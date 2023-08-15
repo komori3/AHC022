@@ -160,6 +160,9 @@ struct Pos {
     bool operator<(const Pos& rhs) const {
         return y == rhs.y ? x < rhs.x : y < rhs.y;
     }
+    bool operator==(const Pos& rhs) const {
+        return y == rhs.y && x == rhs.x;
+    }
 };
 
 std::vector<Pos> choose_positions(int L, int N, int seed = 0) {
@@ -763,6 +766,244 @@ void find_valid_grid() {
     }
 }
 
+void temperature_annealing() {
+
+    Timer timer;
+    Xorshift rnd;
+
+    const int L = 50;
+    const int N = 60;
+    auto pos = choose_positions(L, N);
+    auto fixed = make_vector(false, L, L);
+    for (int i = 0; i < N; i++) {
+        auto [y, x] = pos[i];
+        for (int d = 0; d < 8; d++) {
+            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
+            fixed[ny][nx] = true;
+        }
+    }
+    
+    auto temperature = make_vector(0, L, L);
+
+    int fixed_count = 0;
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            if (fixed[y][x]) {
+                fixed_count++;
+                temperature[y][x] = rnd.next_int(2) ? 0 : 1000;
+            }
+        }
+    }
+
+    auto calc_point_cost = [&](int i, int j, int value) {
+        int u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        int l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (value - u) * (value - u) + (value - d) * (value - d) + (value - l) * (value - l) + (value - r) * (value - r);
+    };
+
+    int64_t cost = 0;
+    for (int i = 0; i < L; i++) {
+        for (int j = 0; j < L; j++) {
+            cost += calc_point_cost(i, j, temperature[i][j]);
+        }
+    }
+    cost /= 2;
+    dump(cost);
+
+    int loop = 0;
+    double start_time = timer.elapsed_ms(), now_time, end_time = 3500;
+    while ((now_time = timer.elapsed_ms()) < end_time) {
+        int i = rnd.next_int(L), j = rnd.next_int(L);
+        if (fixed[i][j]) continue;
+        loop++;
+        int old_value = temperature[i][j];
+        int new_value = old_value + (rnd.next_int(2) ? 1 : -1);
+        new_value = std::clamp(new_value, 0, 1000);
+        int diff = calc_point_cost(i, j, new_value) - calc_point_cost(i, j, old_value);
+        double temp = get_temp(1.0, 0.0, now_time - start_time, end_time - start_time);
+        double prob = exp(-diff / temp);
+        if (rnd.next_double() < prob) {
+            //if (diff < 0) {
+            temperature[i][j] = new_value;
+            cost += diff;
+        }
+        if (!(loop & 0x7FFFFF)) {
+            dump(loop, cost);
+        }
+    }
+    dump(loop, cost);
+
+}
+
+void temperature_fast() {
+
+    constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
+    constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
+    constexpr int K = 1;
+
+    Timer timer;
+    Xorshift rnd;
+
+    const int L = 50;
+    const int N = 60;
+    auto pos = choose_positions(L, N);
+    auto fixed = make_vector(false, L, L);
+    for (int i = 0; i < N; i++) {
+        auto [y, x] = pos[i];
+        for (int d = 0; d < 8; d++) {
+            int ny = (y + dy[d] * K + L) % L, nx = (x + dx[d] * K + L) % L;
+            fixed[ny][nx] = true;
+        }
+    }
+
+    auto temperature = make_vector(0, L, L);
+
+    int fixed_count = 0;
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            if (fixed[y][x]) {
+                fixed_count++;
+                temperature[y][x] = rnd.next_int(2) ? 0 : 1000;
+            }
+        }
+    }
+
+    dump(fixed_count);
+
+    auto calc_point_cost = [&](int i, int j, int value) {
+        int u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        int l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (value - u) * (value - u) + (value - d) * (value - d) + (value - l) * (value - l) + (value - r) * (value - r);
+    };
+
+    auto adjacent_mean = [&](int i, int j) {
+        int u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        int l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (int)round((r + u + l + d) / 4.0);
+    };
+
+    auto calc_cost = [&]() {
+        int64_t cost = 0;
+        for (int i = 0; i < L; i++) {
+            for (int j = 0; j < L; j++) {
+                cost += calc_point_cost(i, j, temperature[i][j]);
+            }
+        }
+        return cost / 2;
+    };
+
+    int64_t cost = 0;
+    for (int i = 0; i < L; i++) {
+        for (int j = 0; j < L; j++) {
+            cost += calc_point_cost(i, j, temperature[i][j]);
+        }
+    }
+    cost /= 2;
+    dump(cost);
+    dump(calc_cost());
+
+    dump(timer.elapsed_ms());
+    for (int trial = 0; trial < 150; trial++) {
+        for (int i = 0; i < L; i++) {
+            for (int j = 0; j < L; j++) {
+                if (fixed[i][j]) continue;
+                temperature[i][j] = adjacent_mean(i, j);
+            }
+        }
+    }
+    dump(timer.elapsed_ms());
+
+    dump(calc_cost());
+
+}
+
+
+
+void temperature_fast_double(int L, int N, std::vector<Pos>& pos, std::vector<Pos>& displacements) {
+
+    Timer timer;
+    Xorshift rnd;
+
+    std::vector<int> bits(1 << (int)(displacements.size() - 1));
+    std::iota(bits.begin(), bits.end(), 0);
+    for (int& x : bits) x *= 2;
+    dump(bits);
+
+    std::sort(bits.begin(), bits.end(), [](int a, int b) {
+        return popcount(a) < popcount(b);
+        });
+
+    dump(bits);
+
+    int fixed_count = 0;
+    auto fixed = make_vector(false, L, L);
+    auto temperature = make_vector(0.0, L, L);
+
+    for (int i = 0; i < N; i++) {
+        auto [y, x] = pos[i];
+        int bit = bits[i];
+        for (int b = 0; b < displacements.size(); b++) {
+            int dy = displacements[b].y, dx = displacements[b].x;
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            fixed_count += !fixed[ny][nx];
+            fixed[ny][nx] = true;
+            temperature[y][x] = (bit >> b & 1) * 1000.0;
+        }
+    }
+
+    dump(fixed_count);
+    for (const auto& v : temperature) std::cerr << v << '\n';
+
+    auto calc_point_cost = [&](int i, int j, int value) {
+        auto u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        auto l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (value - u) * (value - u) + (value - d) * (value - d) + (value - l) * (value - l) + (value - r) * (value - r);
+    };
+
+    auto adjacent_mean = [&](int i, int j) {
+        auto u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        auto l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (r + u + l + d) / 4.0;
+    };
+
+    auto calc_cost = [&]() {
+        auto cost = 0.0;
+        for (int i = 0; i < L; i++) {
+            for (int j = 0; j < L; j++) {
+                cost += calc_point_cost(i, j, temperature[i][j]);
+            }
+        }
+        return cost / 2;
+    };
+
+    auto cost = calc_cost();
+    dump(cost);
+
+    dump(timer.elapsed_ms());
+    for (int trial = 0; trial < 300; trial++) {
+        for (int i = 0; i < L; i++) {
+            for (int j = 0; j < L; j++) {
+                if (fixed[i][j]) continue;
+                temperature[i][j] = adjacent_mean(i, j);
+            }
+        }
+        auto ncost = calc_cost();
+        //dump(trial, ncost - cost);
+        cost = ncost;
+    }
+    dump(timer.elapsed_ms());
+    dump((int64_t)cost);
+
+    for (int i = 0; i < L; i++) {
+        for (int j = 0; j < L; j++) {
+            temperature[i][j] = round(temperature[i][j]);
+        }
+    }
+
+    dump((int64_t)calc_cost());
+
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
 #ifdef HAVE_OPENCV_HIGHGUI
@@ -775,7 +1016,70 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     //parity_test();
 
-    find_valid_grid();
+    //find_valid_grid();
+
+    //temperature_annealing();
+
+    //temperature_fast();
+
+    constexpr int L = 30, N = 60;
+    auto pos = choose_positions(L, N);
+    auto fixed = make_vector(false, L, L);
+    int fixed_count = 0;
+
+    std::vector<Pos> displacements;
+
+    auto set = [&](int dy, int dx) {
+        for (auto [y, x] : pos) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            fixed_count += !fixed[ny][nx];
+            fixed[ny][nx] = true;
+        }
+        displacements.emplace_back(dy, dx);
+    };
+
+    auto count = [&](int dy, int dx) {
+        int res = 0;
+        for (auto [y, x] : pos) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            res += fixed[ny][nx];
+        }
+        return res;
+    };
+
+    if (true) {
+        set(0, 0);
+        dump(fixed_count);
+
+        for (int i = 1; i < 8; i++) {
+            int max_count = -1, max_dy = -1, max_dx = -1;
+            for (int dy = 0; dy <= L - 1; dy++) {
+                for (int dx = 0; dx <= L - 1; dx++) {
+                    if (std::count(displacements.begin(), displacements.end(), Pos(dy, dx))) continue;
+                    int c = count(dy, dx);
+                    if (chmax(max_count, c)) {
+                        max_dy = dy;
+                        max_dx = dx;
+                    }
+                }
+            }
+            set(max_dy, max_dx);
+            dump(fixed_count);
+        }
+
+        dump(displacements);
+    }
+    else {
+        for (int d = 0; d < 8; d++) {
+            set(dy[d], dx[d]);
+        }
+        dump(fixed_count);
+    }
+
+    dump(displacements)
+    for (const auto& v : fixed) std::cerr << v << '\n';
+
+    temperature_fast_double(L, N, pos, displacements);
 
     return 0;
 }

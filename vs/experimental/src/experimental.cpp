@@ -1004,24 +1004,7 @@ void temperature_fast_double(int L, int N, std::vector<Pos>& pos, std::vector<Po
 
 }
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-
-#ifdef HAVE_OPENCV_HIGHGUI
-    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
-#endif
-
-    //central_limit_theorem();
-
-    //error_correction(100, 7, 0.01);
-
-    //parity_test();
-
-    //find_valid_grid();
-
-    //temperature_annealing();
-
-    //temperature_fast();
-
+void choose_displacements() {
     constexpr int L = 30, N = 60;
     auto pos = choose_positions(L, N);
     auto fixed = make_vector(false, L, L);
@@ -1076,10 +1059,361 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         dump(fixed_count);
     }
 
-    dump(displacements)
+    dump(displacements);
     for (const auto& v : fixed) std::cerr << v << '\n';
+}
 
-    temperature_fast_double(L, N, pos, displacements);
+struct GridSearcherDFS {
+
+    const int L;
+    const int N;
+    const int Q;
+    const int D;
+    const std::vector<Pos> positions;
+    const std::vector<Pos> displacements;
+
+    std::vector<int> position_order;
+    std::vector<int> code_order;
+    std::vector<bool> code_used;
+
+    std::vector<std::vector<int>> grid;
+    std::vector<std::vector<int>> grid_ctr;
+
+    bool found;
+
+    GridSearcherDFS(int L_, int Q_, const std::vector<Pos>& positions_, const std::vector<Pos>& displacements_)
+        : L(L_), N(positions_.size()), Q(Q_), D(displacements_.size()), positions(positions_), displacements(displacements_) {}
+
+    int code_sum(int code) const {
+        int res = 0;
+        for (int d = 0; d < D; d++) {
+            res += code % Q;
+            code /= Q;
+        }
+        return res;
+    }
+
+    std::vector<int> to_array(int code) const {
+        std::vector<int> arr;
+        for (int d = 0; d < D; d++) {
+            arr.push_back(code % Q);
+            code /= Q;
+        }
+        return arr;
+    }
+
+    bool can_embed(int position_id, int code) const {
+        const auto& [y, x] = positions[position_id];
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            int val = code % Q;
+            code /= Q;
+            if (grid[ny][nx] != -1 && grid[ny][nx] != val) return false;
+        }
+        return true;
+    }
+
+    void embed(int position_id, int code) {
+        code_used[code] = true;
+        const auto& [y, x] = positions[position_id];
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            int val = code % Q;
+            code /= Q;
+            grid[ny][nx] = val;
+            grid_ctr[ny][nx]++;
+        }
+    }
+
+    void undo(int position_id, int code) {
+        code_used[code] = false;
+        const auto& [y, x] = positions[position_id];
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            int val = code % Q;
+            code /= Q;
+            grid_ctr[ny][nx]--;
+            if (!grid_ctr[ny][nx]) grid[ny][nx] = -1;
+        }
+    }
+
+    void dfs(int idx) {
+        if (idx == N) {
+            found = true;
+            return;
+        }
+        int position_id = position_order[idx];
+        //dump(idx, position_id);
+        for (int code : code_order) {
+            if (code_used[code]) continue;
+            if (can_embed(position_id, code)) {
+                embed(position_id, code);
+                dfs(idx + 1);
+                if (found) return;
+                undo(position_id, code);
+            }
+        }
+    }
+
+    void run() {
+        // 周囲への影響度の高い位置から選ぶ
+        auto overlap = make_vector(0, L, L);
+        for (const auto& [y, x] : positions) {
+            for (const auto& [dy, dx] : displacements) {
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                overlap[ny][nx]++;
+            }
+        }
+
+        std::vector<int> position_priority(N);
+        for (int i = 0; i < N; i++) {
+            auto [y, x] = positions[i];
+            for (const auto& [dy, dx] : displacements) {
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                position_priority[i] += overlap[ny][nx];
+            }
+        }
+
+        position_order.resize(N);
+        std::iota(position_order.begin(), position_order.end(), 0);
+        std::sort(position_order.begin(), position_order.end(), [&](int i, int j) {
+            return position_priority[i] > position_priority[j];
+            });
+
+        code_order.resize((int)pow(Q, D));
+        std::iota(code_order.begin(), code_order.end(), 0);
+        std::sort(code_order.begin(), code_order.end(), [this](int i, int j) {
+            auto pi = code_sum(i), pj = code_sum(j);
+            return pi == pj ? i < j : pi < pj;
+            });
+
+        code_used.resize(code_order.size());
+
+        grid = make_vector(-1, L, L);
+        grid_ctr = make_vector(0, L, L);
+
+        found = false;
+
+        dfs(0);
+
+        for (const auto& v : grid) std::cerr << v << '\n';
+
+        {
+            std::set<int> code_set;
+            for (int position_id : position_order) {
+                auto [y, x] = positions[position_id];
+                int code = 0;
+                for (const auto& [dy, dx] : displacements) {
+                    int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                    assert(grid[ny][nx] != -1);
+                    code *= Q;
+                    code += grid[ny][nx];
+                }
+                dump(position_id, code);
+                assert(!code_set.count(code));
+                code_set.insert(code);
+            }
+        }
+    }
+
+};
+
+struct GridSearcherCodeBaseAnnealing {
+
+    const int L;
+    const int N;
+    const int Q;
+    const int D;
+    const std::vector<Pos> positions;
+    const std::vector<Pos> displacements;
+
+    Xorshift rnd;
+
+    std::vector<int> codes;
+    std::vector<std::vector<std::vector<int>>> grid_ctr;
+
+    int cost;
+
+    GridSearcherCodeBaseAnnealing(int L_, int Q_, const std::vector<Pos>& positions_, const std::vector<Pos>& displacements_)
+        : L(L_), N(positions_.size()), Q(Q_), D(displacements_.size()), positions(positions_), displacements(displacements_) {}
+
+    int calc_grid_cost(int y, int x) const {
+        const auto& g = grid_ctr[y][x];
+        return std::accumulate(g.begin(), g.end(), 0) - *std::max_element(g.begin(), g.end());
+    }
+
+    void pop(int idx) {
+        int code = codes[idx];
+        codes[idx] = -1;
+        const auto& [y, x] = positions[idx];
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            cost -= calc_grid_cost(ny, nx);
+            grid_ctr[ny][nx][code % Q]--;
+            cost += calc_grid_cost(ny, nx);
+            code /= Q;
+        }
+    }
+
+    void push(int idx, int code) {
+        assert(codes[idx] == -1);
+        codes[idx] = code;
+        const auto& [y, x] = positions[idx];
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            cost -= calc_grid_cost(ny, nx);
+            grid_ctr[ny][nx][code % Q]++;
+            cost += calc_grid_cost(ny, nx);
+            code /= Q;
+        }
+    }
+
+    int swap(int idx1, int idx2) {
+        assert(idx1 != idx2);
+        if (idx1 > idx2) std::swap(idx1, idx2);
+        int pcost = cost;
+        int code1 = codes[idx1], code2 = codes[idx2];
+        if (N <= idx2) {
+            pop(idx1);
+            push(idx1, code2);
+            codes[idx2] = code1;
+        }
+        else {
+            pop(idx1);
+            pop(idx2);
+            push(idx1, code2);
+            push(idx2, code1);
+        }
+        return cost - pcost;
+    }
+
+    void reset() {
+        shuffle_vector(codes, rnd);
+        cost = 0;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                grid_ctr[y][x].assign(Q, 0);
+            }
+        }
+        for (int i = 0; i < N; i++) {
+            int code = codes[i];
+            const auto [y, x] = positions[i];
+            for (const auto [dy, dx] : displacements) {
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                grid_ctr[ny][nx][code % Q]++;
+                code /= Q;
+            }
+        }
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                cost += calc_grid_cost(y, x);
+            }
+        }
+    }
+
+    int choose_invalid_idx(Xorshift& rnd) const {
+        std::vector<int> cands;
+        for (int i = 0; i < N; i++) {
+            auto [y, x] = positions[i];
+            bool invalid = false;
+            for (const auto [dy, dx] : displacements) {
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                if (calc_grid_cost(ny, nx)) {
+                    invalid = true;
+                    break;
+                }
+            }
+            if (invalid) cands.push_back(i);
+        }
+        return cands[rnd.next_int(cands.size())];
+    }
+
+    void run() {
+
+        const int M = (int)pow(Q, D);
+        dump(M);
+        codes.resize(M);
+        std::iota(codes.begin(), codes.end(), 0);
+
+        grid_ctr = make_vector(std::vector<int>(Q), L, L);
+
+        for (int i = 0; i < N; i++) {
+            int code = codes[i];
+            const auto [y, x] = positions[i];
+            for (const auto [dy, dx] : displacements) {
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                grid_ctr[ny][nx][code % Q]++;
+                code /= Q;
+            }
+        }
+
+        cost = 0;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                cost += calc_grid_cost(y, x);
+            }
+        }
+
+        
+        int loop = 0;
+        int min_cost = cost;
+        int no_change = 0;
+        while (cost) {
+            loop++;
+            int idx1 = rnd.next_int(N), idx2;
+            do {
+                idx2 = rnd.next_int(M);
+            } while (idx1 == idx2);
+            int diff = swap(idx1, idx2);
+            if (no_change >= 100000) {
+                no_change = 0;
+                //reset();
+                min_cost = cost;
+                continue;
+            }
+            if (diff > 0) swap(idx1, idx2);
+            if (chmin(min_cost, cost)) {
+                no_change = 0;
+            }
+            else {
+                no_change++;
+            }
+            if (!(loop & 0xFFFF)) dump(loop, cost);
+        }
+        dump(cost);
+
+    }
+
+};
+
+int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+
+#ifdef HAVE_OPENCV_HIGHGUI
+    cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
+#endif
+
+    //central_limit_theorem();
+
+    //error_correction(100, 7, 0.01);
+
+    //parity_test();
+
+    //find_valid_grid();
+
+    //temperature_annealing();
+
+    //temperature_fast();
+
+    constexpr int L = 10, N = 100;
+    auto positions = choose_positions(L, N);
+    std::vector<Pos> displacements;
+    for (int d = 0; d < 7; d++) {
+        displacements.emplace_back(dy[d], dx[d]);
+    }
+
+    GridSearcherCodeBaseAnnealing gdfs(L, 2, positions, displacements);
+
+    gdfs.run();
 
     return 0;
 }

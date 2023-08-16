@@ -48,7 +48,7 @@ iosetup(true); // set false when solving interective problems
 /** string formatter **/
 template<typename... Ts> std::string format(const std::string& f, Ts... t) { size_t l = std::snprintf(nullptr, 0, f.c_str(), t...); std::vector<char> b(l + 1); std::snprintf(&b[0], l + 1, f.c_str(), t...); return std::string(&b[0], &b[0] + l); }
 /** dump **/
-#define ENABLE_DUMP
+//#define ENABLE_DUMP
 #define DUMPOUT std::cerr
 std::ostringstream DUMPBUF;
 #ifdef ENABLE_DUMP
@@ -1160,7 +1160,7 @@ void batch_execution() {
     double best_avg_score = -1e9;
     ParamsPtr best_params = nullptr;
 
-    const int sqrtS = 30;
+    const int sqrtS = 20;
     const int num_quantize = params_opt[sqrtS][0];
     const int intercept = params_opt[sqrtS][1];
     const int slope = params_opt[sqrtS][2];
@@ -1173,7 +1173,7 @@ void batch_execution() {
         // grid_search
         std::vector<Metrics> metrics_list(num_seeds);
         int progress = 0;
-        int64_t score_sum = 0;
+        double score_log_sum = 0.0;
         int wrong_sum = 0;
         int64_t placement_sum = 0;
         int64_t measurement_sum = 0;
@@ -1190,7 +1190,7 @@ void batch_execution() {
             if (metrics_opt) {
                 auto metrics = *metrics_opt;
                 progress++;
-                score_sum += metrics.score;
+                score_log_sum += log(metrics.score);
                 wrong_sum += metrics.wrong;
                 placement_sum += metrics.placement_cost;
                 measurement_sum += metrics.measurement_cost;
@@ -1198,8 +1198,8 @@ void batch_execution() {
                 chmin(min_score, metrics.score);
                 chmax(max_score, metrics.score);
                 std::cerr << format(
-                    "\rprogress=%4d/%4d, avg_score=%13.2f, avg_wrong=%5.3f, avg_placement=%13.2f, avg_measurement=%13.2f, avg_count=%7.2f, min=%11lld, max=%11lld, {%2d, %2d, %2d, %2d, %2d, %2d}",
-                    progress, num_seeds, (double)score_sum / progress, (double)wrong_sum / progress, (double)placement_sum / progress, (double)measurement_sum / progress, (double)count_sum / progress, min_score, max_score,
+                    "\rprogress=%4d/%4d, avg_log_score=%8.4f, avg_wrong=%5.3f, avg_placement=%13.2f, avg_measurement=%13.2f, avg_count=%7.2f, min=%11lld, max=%11lld, {%2d, %2d, %2d, %2d, %2d, %2d}",
+                    progress, num_seeds, (double)score_log_sum / progress, (double)wrong_sum / progress, (double)placement_sum / progress, (double)measurement_sum / progress, (double)count_sum / progress, min_score, max_score,
                     num_quantize, intercept, slope, num_trial, parity, displacement
                 );
                 metrics_list[seed] = metrics;
@@ -1207,7 +1207,7 @@ void batch_execution() {
         }
         std::cerr << '\n';
 
-        double avg_score = (double)score_sum / progress;
+        double avg_score = (double)score_log_sum / progress;
         if (chmax(best_avg_score, avg_score)) {
             best_params = overwrite_params;
             std::cerr << *best_params << '\n';
@@ -1224,8 +1224,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    //batch_execution();
-    //exit(0);
+    batch_execution();
+    exit(0);
 
     JudgePtr judge;
 

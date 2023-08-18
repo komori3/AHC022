@@ -632,22 +632,6 @@ struct EncodedGrid {
 
 };
 
-//double compute_placement_cost(
-//    const Grid<int>& grid,
-//    const std::vector<Pos>& pos,
-//    const std::vector<Pos>& displacements
-//) { // TODO: int でちゃんとやる
-//    const int L = grid.size();
-//    auto fixed = make_vector(false, L, L);
-//    auto dgrid = make_vector(0.0, L, L);
-//    for (int y = 0; y < L; y++) {
-//        for (int x = 0; x < L; x++) {
-//            dgrid[y][x] = grid[y][x];
-//        }
-//    }
-//
-//}
-
 EncodedGridPtr find_unique_encoded_grid(
     const Input& input,
     int bit_rate,
@@ -913,6 +897,12 @@ Grid<int> create_temperature(
             temperature[y][x] = quantizer.to_value(fixed[y][x] ? temperature[y][x] : 0);
         }
     }
+
+    auto calc_point_cost = [&](int i, int j, int value) {
+        int u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];
+        int l = temperature[i][j == 0 ? L - 1 : j - 1], r = temperature[i][j == L - 1 ? 0 : j + 1];
+        return (value - u) * (value - u) + (value - d) * (value - d) + (value - l) * (value - l) + (value - r) * (value - r);
+    };
 
     auto adjacent_mean = [&](int i, int j) {
         int u = temperature[i == 0 ? L - 1 : i - 1][j], d = temperature[i == L - 1 ? 0 : i + 1][j];

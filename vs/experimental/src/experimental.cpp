@@ -164,6 +164,10 @@ struct Pos {
         return y == rhs.y && x == rhs.x;
     }
 };
+std::istream& operator>>(std::istream& in, Pos& pos) {
+    in >> pos.y >> pos.x;
+    return in;
+}
 
 std::vector<Pos> choose_positions(int L, int N, int seed = 0) {
     std::mt19937_64 engine(seed);
@@ -179,182 +183,123 @@ std::vector<Pos> choose_positions(int L, int N, int seed = 0) {
     return cands;
 }
 
-std::vector<std::vector<int>> find_unique_encoded_grid(
-    const std::vector<Pos>& pos,
-    int L, // grid size
-    int Q, // number of quantization
-    int D, // number of neighbors
-    double duration
-) {
-    Timer timer;
+struct Input {
 
-    // 6 2 5
-    // 3 0 1
-    // 7 4 8
-    constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
-    constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
+    int L, N, S;
+    std::vector<Pos> landing_pos;
 
-    const int N = pos.size();
-
-    std::vector<int> powers({ 1 });
-    while (powers.size() < D) {
-        powers.push_back(powers.back() * Q);
+    void load(std::istream& in) {
+        in >> L >> N >> S;
+        landing_pos.resize(N);
+        in >> landing_pos;
     }
 
-    auto grid = make_vector(0, L, L);
-    auto grid_to_id = make_vector(std::vector<std::pair<int, int>>(), L, L);
-    for (int i = 0; i < N; i++) {
-        auto [y, x] = pos[i];
-        for (int d = 0; d < D; d++) {
-            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
-            grid_to_id[ny][nx].emplace_back(i, d);
+    void generate(std::mt19937_64& engine) {
+        std::uniform_int_distribution<> dist_int;
+        if (L == -1) L = dist_int(engine) % 41 + 10;
+        if (N == -1) N = dist_int(engine) % 41 + 60;
+        if (S == -1) {
+            S = dist_int(engine) % 30 + 1;
+            S *= S;
         }
-    }
-
-    Xorshift rnd;
-
-    std::vector<Pos> cands;
-    for (int y = 0; y < L; y++) {
-        for (int x = 0; x < L; x++) {
-            if (!grid_to_id[y][x].empty()) {
-                cands.emplace_back(y, x);
-                grid[y][x] = rnd.next_int(Q);
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                landing_pos.emplace_back(y, x);
             }
         }
+        std::shuffle(landing_pos.begin(), landing_pos.end(), engine);
+        landing_pos.erase(landing_pos.begin() + N, landing_pos.end());
     }
 
-    std::vector<int> codes(N);
-    std::vector<int> code_ctr((int)pow(Q, D));
-    for (int i = 0; i < N; i++) {
-        auto [y, x] = pos[i];
-        int code = 0;
-        for (int d = 0; d < D; d++) {
-            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
-            code += grid[ny][nx] * powers[d];
-        }
-        codes[i] = code;
-        code_ctr[code]++;
+    Input(std::istream& in) { load(in); }
+
+    Input(const std::string& input_file) {
+        std::ifstream in(input_file);
+        load(in);
     }
 
-    int cost = 0;
-    for (int c : code_ctr) {
-        int x = std::max(0, c - 1);
-        cost += x * x;
+    Input(std::mt19937_64& engine, int L, int N, int S) : L(L), N(N), S(S) {
+        generate(engine);
     }
-    //dump(code_ctr);
-    //dump(cost);
 
-    auto pop = [&](int value) {
-        assert(code_ctr[value]);
-        int px = std::max(0, code_ctr[value] - 1);
-        cost -= px * px;
-        code_ctr[value]--;
-        int nx = std::max(0, code_ctr[value] - 1);
-        cost += nx * nx;
-    };
+};
 
-    auto push = [&](int value) {
-        int px = std::max(0, code_ctr[value] - 1);
-        cost -= px * px;
-        code_ctr[value]++;
-        int nx = std::max(0, code_ctr[value] - 1);
-        cost += nx * nx;
-    };
+struct Quantizer {
 
-    // cands から 1 つ点を選び、その点の値を [0,Q) でランダム変更
-    auto change = [&](int idx, int value) {
-        int pcost = cost;
-        assert(idx < cands.size());
-        auto [y, x] = cands[idx];
-        assert(grid[y][x] != value);
-        int diff = value - grid[y][x];
-        for (auto [i, d] : grid_to_id[y][x]) {
-            pop(codes[i]);
-            codes[i] += diff * powers[d];
-            push(codes[i]);
-        }
-        grid[y][x] = value;
-        return cost - pcost;
-    };
+    const int rate;
+    const int intercept;
+    const int slope;
 
-    auto swap = [&](int idx1, int idx2) {
-        assert(idx1 != idx2);
-        auto [y1, x1] = cands[idx1];
-        auto [y2, x2] = cands[idx2];
-        int v1 = grid[y1][x1], v2 = grid[y2][x2];
-        assert(v1 != v2);
-        int diff = 0;
-        diff += change(idx1, v2);
-        diff += change(idx2, v1);
-        return diff;
-    };
+    Quantizer(int rate_, int intercept_, int slope_) : rate(rate_), intercept(intercept_), slope(slope_) {}
 
-    int loop = 0;
-    while (timer.elapsed_ms() < duration && cost) {
-        loop++;
-        //if (!(loop & 0xFFFFF)) dump(loop, cost);
-        if (rnd.next_int(2)) {
-            int idx = rnd.next_int(cands.size());
-            auto [y, x] = cands[idx];
-            int pvalue = grid[y][x];
-            int nvalue;
-            do {
-                nvalue = rnd.next_int(Q);
-            } while (pvalue == nvalue);
-            int diff = change(idx, nvalue);
-            double temp = 0.2;
-            double prob = exp(-diff / temp);
-            if (rnd.next_double() > prob) change(idx, pvalue);
-        }
-        else {
-            int idx1, idx2;
-            do {
-                idx1 = rnd.next_int(cands.size());
-                idx2 = rnd.next_int(cands.size());
-            } while (idx1 == idx2);
-            auto [y1, x1] = cands[idx1];
-            auto [y2, x2] = cands[idx2];
-            if (grid[y1][x1] == grid[y2][x2]) continue;
-            int diff = swap(idx1, idx2);
-            double temp = 0.2;
-            double prob = exp(-diff / temp);
-            if (rnd.next_double() > prob) swap(idx1, idx2);
-        }
+    int quantize(double value) const {
+        return std::clamp((int)round((value - intercept) / slope), 0, rate - 1) * slope + intercept;
     }
-    if (cost) return {};
-    //dump(loop);
-    //dump(codes);
-    //dump(code_ctr);
 
-    return grid;
-}
+    int to_value(int index) const {
+        assert(0 <= index && index < rate);
+        return intercept + index * slope;
+    }
 
+    int to_index(int value) const {
+        value -= intercept;
+        assert(value % slope == 0);
+        int index = value / slope;
+        assert(0 <= index && index < rate);
+        return index;
+    }
 
-unsigned popcount(unsigned bits) {
-    bits = (bits & 0x55555555) + (bits >> 1 & 0x55555555);
-    bits = (bits & 0x33333333) + (bits >> 2 & 0x33333333);
-    bits = (bits & 0x0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f);
-    bits = (bits & 0x00ff00ff) + (bits >> 8 & 0x00ff00ff);
-    return (bits & 0x0000ffff) + (bits >> 16 & 0x0000ffff);
-}
+    int to_index(double value) const {
+        return to_index(quantize(value));
+    }
 
-// 6 2 5
-// 3 0 1
-// 7 4 8
-constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
-constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
+};
 
-std::vector<std::vector<int>> find_unique_encoded_grid(
-    const std::vector<Pos>& pos,
-    int L, // grid size
-    int Q, // number of quantization
+template<typename T>
+using Grid = std::vector<std::vector<T>>;
+
+struct EncodedGrid;
+using EncodedGridPtr = std::shared_ptr<EncodedGrid>;
+struct EncodedGrid {
+
+    const int num_neighbors;
+    const bool align_parity;
+    const Grid<int> grid;
+    const std::vector<Pos> displacements;
+    const std::vector<int> codes;
+    const std::vector<bool> parities;
+
+    EncodedGrid(
+        int num_neighbors_,
+        bool align_parity_,
+        const Grid<int>& grid_,
+        const std::vector<Pos> displacements_,
+        const std::vector<int>& codes_,
+        const std::vector<bool>& parities_
+    ) :
+        num_neighbors(num_neighbors_),
+        align_parity(align_parity_),
+        grid(grid_),
+        displacements(displacements_),
+        codes(codes_),
+        parities(parities_) {}
+
+};
+
+EncodedGridPtr find_unique_encoded_grid(
+    const Input& input,
+    const Quantizer& quantizer,
     int D, // number of neighbors
     bool align_parity,
+    int displacement,
     double duration
 ) {
     Timer timer;
 
-    const int N = pos.size();
+    const int L = input.L;
+    const int N = input.N;
+    const int Q = quantizer.rate;
+    const auto& pos = input.landing_pos;
 
     assert(N * (align_parity ? 2 : 1) <= (int)pow(Q, D));
 
@@ -363,12 +308,49 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         powers.push_back(powers.back() * Q);
     }
 
+    std::vector<Pos> displacements;
+    {
+        // 6 2 5
+        // 3 0 1
+        // 7 4 8
+        constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
+        constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
+        std::vector<Pos> tmp, mtmp;
+        while (true) {
+            if (displacement >= L) {
+                displacement--;
+                continue;
+            }
+            tmp.clear();
+            mtmp.clear();
+            bool valid = true;
+            for (int d = 0; d < D; d++) {
+                Pos p(dy[d] * displacement, dx[d] * displacement);
+                Pos mp(((p.y % L) + L) % L, ((p.x % L) + L) % L);
+                if (std::count(mtmp.begin(), mtmp.end(), mp)) {
+                    valid = false;
+                    break;
+                }
+                tmp.push_back(p);
+                mtmp.push_back(mp);
+            }
+            if (!valid) {
+                displacement--;
+                continue;
+            }
+            break;
+        }
+        displacements = tmp;
+    }
+    dump(displacements);
+
     auto grid = make_vector(0, L, L);
     auto grid_to_id = make_vector(std::vector<std::pair<int, int>>(), L, L);
     for (int i = 0; i < N; i++) {
         auto [y, x] = pos[i];
         for (int d = 0; d < D; d++) {
-            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
+            auto [dy, dx] = displacements[d];
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
             grid_to_id[ny][nx].emplace_back(i, d);
         }
     }
@@ -386,15 +368,16 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
     }
 
     std::vector<int> codes(N);
-    std::vector<bool> parity(N);
+    std::vector<bool> parities(N);
     std::vector<int> code_ctr((int)pow(Q, D));
     for (int i = 0; i < N; i++) {
         auto [y, x] = pos[i];
         int code = 0;
         for (int d = 0; d < D; d++) {
-            int ny = (y + dy[d] + L) % L, nx = (x + dx[d] + L) % L;
+            auto [dy, dx] = displacements[d];
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
             code += grid[ny][nx] * powers[d];
-            parity[i] = parity[i] ^ (grid[ny][nx] & 1);
+            parities[i] = parities[i] ^ (grid[ny][nx] & 1);
         }
         codes[i] = code;
         code_ctr[code]++;
@@ -406,7 +389,7 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
         cost += x * x;
     }
     if (align_parity) {
-        for (auto p : parity) {
+        for (auto p : parities) {
             cost += p; // odd: penalty
         }
     }
@@ -440,8 +423,8 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
             pop(codes[i]);
             codes[i] += diff * powers[d];
             push(codes[i]);
-            cost += parity_changed ? (parity[i] ? -1 : 1) : 0;
-            parity[i] = parity_changed ? !parity[i] : parity[i];
+            cost += parity_changed ? (parities[i] ? -1 : 1) : 0;
+            parities[i] = parity_changed ? !parities[i] : parities[i];
         }
         grid[y][x] = value;
         return cost - pcost;
@@ -462,7 +445,7 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
     int loop = 0;
     while (timer.elapsed_ms() < duration && cost) {
         loop++;
-        //if (!(loop & 0xFFFFF)) dump(loop, cost);
+        if (!(loop & 0xFFFFF)) dump(loop, cost);
         if (rnd.next_int(2)) {
             int idx = rnd.next_int(cands.size());
             auto [y, x] = cands[idx];
@@ -491,30 +474,27 @@ std::vector<std::vector<int>> find_unique_encoded_grid(
             if (rnd.next_double() > prob) swap(idx1, idx2);
         }
     }
-    if (cost) return {};
 
-    return grid;
+    if (cost) {
+        dump(cost);
+        return nullptr;
+    }
+    return std::make_shared<EncodedGrid>(D, align_parity, grid, displacements, codes, parities);
 }
 
-std::pair<int, std::vector<std::vector<int>>> manage_to_find_unique_encoded_grid(
-    const std::vector<Pos>& pos,
-    int L, // grid size
-    int Q, // number of quantization
-    double duration
-) {
-    const int N = pos.size();
-    int D = 0, NN = 1;
-    while (NN < N) {
-        D++;
-        NN *= Q;
-    }
-    while (true) {
-        auto grid = find_unique_encoded_grid(pos, L, Q, D, duration);
-        if (!grid.empty()) return { D, grid };
-        D++;
-    }
-    return {};
+unsigned popcount(unsigned bits) {
+    bits = (bits & 0x55555555) + (bits >> 1 & 0x55555555);
+    bits = (bits & 0x33333333) + (bits >> 2 & 0x33333333);
+    bits = (bits & 0x0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f);
+    bits = (bits & 0x00ff00ff) + (bits >> 8 & 0x00ff00ff);
+    return (bits & 0x0000ffff) + (bits >> 16 & 0x0000ffff);
 }
+
+// 6 2 5
+// 3 0 1
+// 7 4 8
+constexpr int dy[] = { 0, 0, -1, 0, 1, -1, -1, 1, 1 };
+constexpr int dx[] = { 0, 1, 0, -1, 0, 1, -1, -1, 1 };
 
 void calc_error() {
     // 標準偏差 S の場合に、温度 t のセルを温度 t-d 以下 or t+d 以上と判定する確率
@@ -756,15 +736,6 @@ void parity_test() {
     }
 }
 
-void find_valid_grid() {
-    int L = 10;
-    for (int seed = 0; seed < 100; seed++) {
-        auto pos = choose_positions(L, 100, seed);
-        auto grid = find_unique_encoded_grid(pos, L, 10, 3, true, 500);
-        //auto grid = find_unique_encoded_grid(pos, L, 2, 8, 500);
-        std::cerr << seed << ": " << (grid.empty() ? "Failed" : "Succeeded") << '\n';
-    }
-}
 
 void temperature_annealing() {
 
@@ -1392,28 +1363,44 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    //central_limit_theorem();
-
-    //error_correction(100, 7, 0.01);
-
-    //parity_test();
-
-    //find_valid_grid();
-
-    //temperature_annealing();
-
-    //temperature_fast();
-
-    constexpr int L = 10, N = 100;
-    auto positions = choose_positions(L, N);
-    std::vector<Pos> displacements;
-    for (int d = 0; d < 7; d++) {
-        displacements.emplace_back(dy[d], dx[d]);
+    {
+        std::vector<int> arr({ 1,2,3,4,5 });
+        std::vector<int> tmp({ 3,2,1 });
+        //arr.assign(tmp.begin(), tmp.end());
+        arr.assign(3, 1);
+        dump(arr);
+        exit(1);
     }
 
-    GridSearcherCodeBaseAnnealing gdfs(L, 2, positions, displacements);
+    constexpr int L = 25;
+    constexpr int N = 100;
 
-    gdfs.run();
+    std::mt19937_64 engine(0);
+    std::uniform_int_distribution<> rand_int(0, 10);
+
+    Input input(engine, L, N, 1);
+
+    auto grid = make_vector(0, L, L);
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            grid[y][x] = !rand_int(engine);
+            //grid[y][x] = rand_int(engine);
+        }
+        std::cerr << grid[y] << '\n';
+    }
+
+    auto hoge = make_vector(0, L, L, 2);
+    for (int dy = 0; dy < L; dy++) {
+        for (int dx = 0; dx < L; dx++) {
+            for (int n = 0; n < N; n++) {
+                auto [y, x] = input.landing_pos[n];
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                hoge[dy][dx][grid[ny][nx]]++;
+            }
+            dump(dy, dx, hoge[dy][dx]);
+        }
+    }
+    
 
     return 0;
 }

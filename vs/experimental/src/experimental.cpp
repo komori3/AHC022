@@ -975,9 +975,8 @@ void temperature_fast_double(int L, int N, std::vector<Pos>& pos, std::vector<Po
 
 }
 
-void choose_displacements() {
-    constexpr int L = 30, N = 60;
-    auto pos = choose_positions(L, N);
+std::vector<Pos> choose_displacements(int L, const std::vector<Pos>& pos, int num_neighbors, int width) {
+    const int N = pos.size();
     auto fixed = make_vector(false, L, L);
     int fixed_count = 0;
 
@@ -1005,10 +1004,10 @@ void choose_displacements() {
         set(0, 0);
         dump(fixed_count);
 
-        for (int i = 1; i < 8; i++) {
+        for (int i = 1; i < num_neighbors; i++) {
             int max_count = -1, max_dy = -1, max_dx = -1;
-            for (int dy = 0; dy <= L - 1; dy++) {
-                for (int dx = 0; dx <= L - 1; dx++) {
+            for (int dy = -width; dy <= width; dy++) {
+                for (int dx = -width; dx <= width; dx++) {
                     if (std::count(displacements.begin(), displacements.end(), Pos(dy, dx))) continue;
                     int c = count(dy, dx);
                     if (chmax(max_count, c)) {
@@ -1030,8 +1029,7 @@ void choose_displacements() {
         dump(fixed_count);
     }
 
-    dump(displacements);
-    for (const auto& v : fixed) std::cerr << v << '\n';
+    return displacements;
 }
 
 struct GridSearcherDFS {
@@ -1151,14 +1149,23 @@ struct GridSearcherDFS {
             return position_priority[i] > position_priority[j];
             });
 
-        code_order.resize((int)pow(Q, D));
-        std::iota(code_order.begin(), code_order.end(), 0);
+        code_order.clear();
+        int code_size = (int)pow(Q, D);
+        {
+            for (int code = 0; code < code_size; code++) {
+                if (code_sum(code) % 2 == 0) {
+                    code_order.push_back(code);
+                }
+            }
+        }
+        //code_order.resize((int)pow(Q, D));
+        //std::iota(code_order.begin(), code_order.end(), 0);
         std::sort(code_order.begin(), code_order.end(), [this](int i, int j) {
             auto pi = code_sum(i), pj = code_sum(j);
             return pi == pj ? i < j : pi < pj;
             });
 
-        code_used.resize(code_order.size());
+        code_used.resize(code_size);
 
         grid = make_vector(-1, L, L);
         grid_ctr = make_vector(0, L, L);
@@ -1357,50 +1364,265 @@ struct GridSearcherCodeBaseAnnealing {
 
 };
 
+struct GridAnnealer {
+
+    const int L;
+    const int N;
+    const std::vector<Pos>& pos;
+    const std::vector<Pos>& displacements;
+
+    const int bit_rate;
+    const int num_neighbors;
+    const bool align_parity;
+
+    Xorshift rnd;
+
+    std::vector<int> powers;
+
+    Grid<int> grid;
+    Grid<std::vector<std::pair<int, int>>> grid_to_id;
+    std::vector<Pos> cands;
+    std::vector<int> codes;
+    std::vector<bool> parities;
+    std::vector<int> code_ctr;
+
+    int cost;
+
+    GridAnnealer(
+        int L_, const std::vector<Pos>& pos_, const std::vector<Pos>& displacements_,
+        int bit_rate_, bool align_parity_
+    ) :
+        L(L_), N(pos_.size()), pos(pos_), displacements(displacements_),
+        bit_rate(bit_rate_), num_neighbors(displacements.size()), align_parity(align_parity_)
+    {
+        assert(N * (align_parity ? 2 : 1) <= (int)pow(bit_rate, num_neighbors));
+        initialize();
+    }
+
+    void initialize() {
+
+        powers.assign(1, 1);
+        while (powers.size() < num_neighbors) {
+            powers.push_back(powers.back() * bit_rate);
+        }
+
+        grid = make_vector(0, L, L);
+        grid_to_id = make_vector(std::vector<std::pair<int, int>>(), L, L);
+        for (int i = 0; i < N; i++) {
+            auto [y, x] = pos[i];
+            for (int d = 0; d < num_neighbors; d++) {
+                auto [dy, dx] = displacements[d];
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                grid_to_id[ny][nx].emplace_back(i, d);
+            }
+        }
+
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                if (!grid_to_id[y][x].empty()) {
+                    cands.emplace_back(y, x);
+                    //grid[y][x] = rnd.next_int(bit_rate);
+                }
+            }
+        }
+
+        codes.assign(N, 0);
+        parities.assign(N, false);
+        code_ctr.assign((int)pow(bit_rate, num_neighbors), 0);
+        for (int i = 0; i < N; i++) {
+            auto [y, x] = pos[i];
+            int code = 0;
+            for (int d = 0; d < num_neighbors; d++) {
+                auto [dy, dx] = displacements[d];
+                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+                code += grid[ny][nx] * powers[d];
+                parities[i] = parities[i] ^ (grid[ny][nx] & 1);
+            }
+            codes[i] = code;
+            code_ctr[code]++;
+        }
+
+        cost = 0;
+        for (int c : code_ctr) {
+            int x = std::max(0, c - 1);
+            cost += x * x;
+        }
+        if (align_parity) {
+            for (auto p : parities) {
+                cost += p; // odd: penalty
+            }
+        }
+
+    }
+
+    void pop(int value) {
+        assert(code_ctr[value]);
+        int px = std::max(0, code_ctr[value] - 1);
+        cost -= px * px;
+        code_ctr[value]--;
+        int nx = std::max(0, code_ctr[value] - 1);
+        cost += nx * nx;
+    }
+
+    void push(int value) {
+        int px = std::max(0, code_ctr[value] - 1);
+        cost -= px * px;
+        code_ctr[value]++;
+        int nx = std::max(0, code_ctr[value] - 1);
+        cost += nx * nx;
+    }
+
+    int change(int idx, int value) {
+        int pcost = cost;
+        assert(idx < cands.size());
+        auto [y, x] = cands[idx];
+        assert(grid[y][x] != value);
+        int diff = value - grid[y][x];
+        bool parity_changed = align_parity & (grid[y][x] ^ value) & 1;
+        for (auto [i, d] : grid_to_id[y][x]) {
+            pop(codes[i]);
+            codes[i] += diff * powers[d];
+            push(codes[i]);
+            cost += parity_changed ? (parities[i] ? -1 : 1) : 0;
+            parities[i] = parity_changed ? !parities[i] : parities[i];
+        }
+        grid[y][x] = value;
+        return cost - pcost;
+    }
+
+    int swap(int idx1, int idx2) {
+        assert(idx1 != idx2);
+        auto [y1, x1] = cands[idx1];
+        auto [y2, x2] = cands[idx2];
+        int v1 = grid[y1][x1], v2 = grid[y2][x2];
+        assert(v1 != v2);
+        int diff = 0;
+        diff += change(idx1, v2);
+        diff += change(idx2, v1);
+        return diff;
+    }
+
+    bool run(double duration) {
+        Timer timer;
+        int loop = 0;
+        while (timer.elapsed_ms() < duration) {
+            loop++;
+            //if (!(loop & 0xFFFFF)) dump(loop, cost);
+            if (rnd.next_int(2)) {
+                int idx = rnd.next_int(cands.size());
+                auto [y, x] = cands[idx];
+                int pvalue = grid[y][x];
+                int nvalue;
+                do {
+                    nvalue = rnd.next_int(bit_rate);
+                } while (pvalue == nvalue);
+                int diff = change(idx, nvalue);
+                double temp = 0.2;
+                double prob = exp(-diff / temp);
+                if (rnd.next_double() > prob) change(idx, pvalue);
+            }
+            else {
+                int idx1, idx2;
+                do {
+                    idx1 = rnd.next_int(cands.size());
+                    idx2 = rnd.next_int(cands.size());
+                } while (idx1 == idx2);
+                auto [y1, x1] = cands[idx1];
+                auto [y2, x2] = cands[idx2];
+                if (grid[y1][x1] == grid[y2][x2]) continue;
+                int diff = swap(idx1, idx2);
+                double temp = 0.2;
+                double prob = exp(-diff / temp);
+                if (rnd.next_double() > prob) swap(idx1, idx2);
+            }
+            if (!cost) break;
+        }
+        //dump(cost, timer.elapsed_ms(), loop, bit_rate, num_neighbors);
+        return cost == 0;
+    }
+
+};
+
+int64_t compute_placement_cost(
+    Grid<int> grid,
+    const std::vector<Pos>& pos,
+    const std::vector<Pos>& displacements,
+    int intercept,
+    int slope
+) {
+    Timer timer;
+    const int L = grid.size();
+    const int N = pos.size();
+    const int D = displacements.size();
+    auto fixed = make_vector(false, L, L);
+    for (const auto& [y, x] : pos) {
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            fixed[ny][nx] = true;
+        }
+    }
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            grid[y][x] = intercept + grid[y][x] * slope;
+        }
+    }
+    auto adjacent_mean = [&](int y, int x) {
+        int u = grid[y == 0 ? L - 1 : y - 1][x], d = grid[y == L - 1 ? 0 : y + 1][x];
+        int l = grid[y][x == 0 ? L - 1 : x - 1], r = grid[y][x == L - 1 ? 0 : x + 1];
+        return (int)round((r + u + l + d) / 4.0);
+    };
+    auto compute_cost = [&]() {
+        int64_t cost = 0;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                int v = grid[y][x], r = grid[y][x == L - 1 ? 0 : x + 1], d = grid[y == L - 1 ? 0 : y + 1][x];
+                cost += (v - r) * (v - r) + (v - d) * (v - d);
+            }
+        }
+        return cost;
+    };
+    auto cost = compute_cost();
+    while (true) {
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                if (fixed[y][x]) continue;
+                grid[y][x] = adjacent_mean(y, x);
+            }
+        }
+        auto ncost = compute_cost();
+        if (cost == ncost) break;
+        else cost = ncost;
+    }
+    return cost;
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
 #ifdef HAVE_OPENCV_HIGHGUI
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 #endif
 
-    {
-        std::vector<int> arr({ 1,2,3,4,5 });
-        std::vector<int> tmp({ 3,2,1 });
-        //arr.assign(tmp.begin(), tmp.end());
-        arr.assign(3, 1);
-        dump(arr);
-        exit(1);
-    }
+    std::string input_file("../../tools_win/in/0006.txt");
+    Input input(input_file);
 
-    constexpr int L = 25;
-    constexpr int N = 100;
+    const int L = input.L;
+    auto pos = input.landing_pos;
+    auto displacements = choose_displacements(L, pos, 8, 14);
+    //std::vector<Pos> displacements;
+    //for (int d = 0; d < 8; d++) displacements.emplace_back(dy[d] * 4, dx[d] * 4);
 
-    std::mt19937_64 engine(0);
-    std::uniform_int_distribution<> rand_int(0, 10);
+    int intercept = 143, slope = 858 - 143;
 
-    Input input(engine, L, N, 1);
-
-    auto grid = make_vector(0, L, L);
-    for (int y = 0; y < L; y++) {
-        for (int x = 0; x < L; x++) {
-            grid[y][x] = !rand_int(engine);
-            //grid[y][x] = rand_int(engine);
-        }
-        std::cerr << grid[y] << '\n';
-    }
-
-    auto hoge = make_vector(0, L, L, 2);
-    for (int dy = 0; dy < L; dy++) {
-        for (int dx = 0; dx < L; dx++) {
-            for (int n = 0; n < N; n++) {
-                auto [y, x] = input.landing_pos[n];
-                int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
-                hoge[dy][dx][grid[ny][nx]]++;
-            }
-            dump(dy, dx, hoge[dy][dx]);
+    GridAnnealer ga(L, pos, displacements, 2, true);
+    int64_t min_cost = INT64_MAX;
+    for (int t = 0; t < 100; t++) {
+        ga.initialize();
+        if (!ga.run(500.0)) continue;
+        auto cost = compute_placement_cost(ga.grid, ga.pos, ga.displacements, intercept, slope);
+        if (chmin(min_cost, cost)) {
+            dump(t, cost);
         }
     }
-    
 
     return 0;
 }

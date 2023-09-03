@@ -502,6 +502,12 @@ struct LocalJudge : Judge {
 
 
 
+// S in [1,5]: 2.11e9 / 5.00e9
+// S in [6,10]: 2.00e9 / 9.00e9
+// S in [11,15]: 0.89e9 / 6.00e9
+// S in [16,20]: 1.14e9 / 10.0e9
+// S in [21,25]: 0.386e9 / 5.00e9
+// S in [26,30]: 0.926e9 / 15.00e9
 constexpr int params_opt[31][6] = {
     {-1, -1, -1, -1, -1, -1},
     {10, 500, 5, 1, 0, 1}, // 277987932.58
@@ -632,25 +638,64 @@ struct EncodedGrid {
 
 };
 
-//double compute_placement_cost(
-//    const Grid<int>& grid,
-//    const std::vector<Pos>& pos,
-//    const std::vector<Pos>& displacements
-//) { // TODO: int でちゃんとやる
-//    const int L = grid.size();
-//    auto fixed = make_vector(false, L, L);
-//    auto dgrid = make_vector(0.0, L, L);
-//    for (int y = 0; y < L; y++) {
-//        for (int x = 0; x < L; x++) {
-//            dgrid[y][x] = grid[y][x];
-//        }
-//    }
-//
-//}
+int64_t compute_placement_cost(
+    Grid<int> grid,
+    const std::vector<Pos>& pos,
+    const std::vector<Pos>& displacements,
+    int intercept,
+    int slope
+) {
+    Timer timer;
+    const int L = grid.size();
+    const int N = pos.size();
+    const int D = displacements.size();
+    auto fixed = make_vector(false, L, L);
+    for (const auto& [y, x] : pos) {
+        for (const auto& [dy, dx] : displacements) {
+            int ny = (y + dy + L) % L, nx = (x + dx + L) % L;
+            fixed[ny][nx] = true;
+        }
+    }
+    for (int y = 0; y < L; y++) {
+        for (int x = 0; x < L; x++) {
+            grid[y][x] = intercept + grid[y][x] * slope;
+        }
+    }
+    auto adjacent_mean = [&](int y, int x) {
+        int u = grid[y == 0 ? L - 1 : y - 1][x], d = grid[y == L - 1 ? 0 : y + 1][x];
+        int l = grid[y][x == 0 ? L - 1 : x - 1], r = grid[y][x == L - 1 ? 0 : x + 1];
+        return (int)round((r + u + l + d) / 4.0);
+    };
+    auto compute_cost = [&]() {
+        int64_t cost = 0;
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                int v = grid[y][x], r = grid[y][x == L - 1 ? 0 : x + 1], d = grid[y == L - 1 ? 0 : y + 1][x];
+                cost += (v - r) * (v - r) + (v - d) * (v - d);
+            }
+        }
+        return cost;
+    };
+    auto cost = compute_cost();
+    while (true) {
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                if (fixed[y][x]) continue;
+                grid[y][x] = adjacent_mean(y, x);
+            }
+        }
+        auto ncost = compute_cost();
+        if (cost == ncost) break;
+        else cost = ncost;
+    }
+    return cost;
+}
 
 EncodedGridPtr find_unique_encoded_grid(
     const Input& input,
     int bit_rate,
+    int intercept,
+    int slope,
     int num_neighbors, // number of neighbors
     bool align_parity,
     int displacement,
@@ -722,7 +767,7 @@ EncodedGridPtr find_unique_encoded_grid(
         for (int x = 0; x < L; x++) {
             if (!grid_to_id[y][x].empty()) {
                 cands.emplace_back(y, x);
-                grid[y][x] = rnd.next_int(bit_rate);
+                //grid[y][x] = rnd.next_int(bit_rate);
             }
         }
     }
@@ -803,7 +848,7 @@ EncodedGridPtr find_unique_encoded_grid(
     };
 
     int loop = 0;
-    while (timer.elapsed_ms() < duration && cost) {
+    while (timer.elapsed_ms() < duration) {
         loop++;
         //if (!(loop & 0xFFFFF)) dump(loop, cost);
         if (rnd.next_int(2)) {
@@ -833,18 +878,22 @@ EncodedGridPtr find_unique_encoded_grid(
             double prob = exp(-diff / temp);
             if (rnd.next_double() > prob) swap(idx1, idx2);
         }
+        if (!cost) break;
     }
 
     if (cost) {
-        dump(cost);
+        dump(cost, bit_rate, num_neighbors);
         return nullptr;
     }
+    dump(bit_rate, intercept, slope, num_neighbors, compute_placement_cost(grid, pos, displacements, intercept, slope));
     return std::make_shared<EncodedGrid>(num_neighbors, align_parity, grid, displacements, codes, parities);
 }
 
 EncodedGridPtr manage_to_find_unique_encoded_grid(
     const Input& input,
     int bit_rate,
+    int intercept,
+    int slope,
     bool align_parity,
     int displacement,
     double duration
@@ -861,7 +910,7 @@ EncodedGridPtr manage_to_find_unique_encoded_grid(
         }
         int DMAX = std::min(num_neighbors + 1, 9);
         while (num_neighbors <= DMAX) {
-            if (auto egrid = find_unique_encoded_grid(input, bit_rate, num_neighbors, true, displacement, 500.0)) {
+            if (auto egrid = find_unique_encoded_grid(input, bit_rate, intercept, slope, num_neighbors, true, displacement, 500.0)) {
                 return egrid;
             }
             num_neighbors++;
@@ -869,17 +918,17 @@ EncodedGridPtr manage_to_find_unique_encoded_grid(
     }
 
     {
-        int D = 0, NN = 1;
-        while (NN < N) {
-            D++;
-            NN *= bit_rate;
+        int num_neighbors = 0, code_size = 1;
+        while (code_size < N) {
+            num_neighbors++;
+            code_size *= bit_rate;
         }
         int DMAX = 9;
-        while (D <= DMAX) {
-            if (auto egrid = find_unique_encoded_grid(input, bit_rate, D, false, displacement, 500.0)) {
+        while (num_neighbors <= DMAX) {
+            if (auto egrid = find_unique_encoded_grid(input, bit_rate, intercept, slope, num_neighbors, false, displacement, 500.0)) {
                 return egrid;
             }
-            D++;
+            num_neighbors++;
         }
     }
 
@@ -1035,6 +1084,7 @@ struct Sampler {
 
 bool resolve_conflict(int N, int num_neighbors, std::vector<Sampler>& samplers) {
 
+
     while (true) {
         std::map<int, std::vector<int>> out_to_in_map;
         for (int id = 0; id < N; id++) {
@@ -1135,58 +1185,66 @@ std::optional<Metrics> solve(JudgePtr judge, ParamsPtr overwrite_params = nullpt
 
     const auto& params = overwrite_params ? overwrite_params : load_params(input);
 
-    auto egrid = manage_to_find_unique_encoded_grid(input, params->bit_rate, params->align_parity, params->displacement, 500.0); // max ~2sec
+    auto egrid = manage_to_find_unique_encoded_grid(
+        input,
+        params->bit_rate,
+        params->intercept,
+        params->slope,
+        params->align_parity,
+        params->displacement,
+        500.0
+    ); // max ~2sec
+
     assert(egrid);
 
-    double best_avg_score = -1.0;
-    int best_intercept = -1;
-    int best_slope = -1;
-    int best_trial = -1;
+    //double best_avg_score = -1.0;
+    //int best_intercept = -1;
+    //int best_slope = -1;
+    //int best_trial = -1;
 
+    //{
+    //    int slope_interval = std::max(params->slope / 10, 1);
 
-    {
-        int slope_interval = std::max(params->slope / 10, 1);
+    //    for (int slope = std::max(1, params->slope - slope_interval * 5); slope <= std::min(1000, params->slope + slope_interval * 5); slope += slope_interval) {
 
-        for (int slope = std::max(1, params->slope - slope_interval * 5); slope <= std::min(1000, params->slope + slope_interval * 5); slope += slope_interval) {
+    //        int val_range = slope * (params->bit_rate - 1);
+    //        int intercept = 500 - val_range / 2;
+    //        Quantizer local_quantizer(params->bit_rate, intercept, slope);
 
-            int val_range = slope * (params->bit_rate - 1);
-            int intercept = 500 - val_range / 2;
-            Quantizer local_quantizer(params->bit_rate, intercept, slope);
+    //        auto temperature = create_temperature(input, egrid, local_quantizer);
 
-            auto temperature = create_temperature(input, egrid, local_quantizer);
+    //        for (int num_trial = std::max(1, params->num_trial - 5); num_trial <= params->num_trial + 5; num_trial++) {
 
-            for (int num_trial = std::max(1, params->num_trial - 5); num_trial <= params->num_trial + 5; num_trial++) {
+    //            double avg_score = 0;
+    //            for (int seed = 0; seed < 10; seed++) {
 
-                double avg_score = 0;
-                for (int seed = 0; seed < 10; seed++) {
+    //                LocalJudge local_judge(input, seed);
 
-                    LocalJudge local_judge(input, seed);
+    //                local_judge.set_temperature(temperature);
+    //                auto estimate = predict(local_judge, input, egrid, local_quantizer, temperature, num_trial);
+    //                local_judge.answer(estimate);
 
-                    local_judge.set_temperature(temperature);
-                    auto estimate = predict(local_judge, input, egrid, local_quantizer, temperature, num_trial);
-                    local_judge.answer(estimate);
+    //                avg_score += (*local_judge.get_metrics()).score;
+    //            }
+    //            avg_score /= 10;
 
-                    avg_score += (*local_judge.get_metrics()).score;
-                }
-                avg_score /= 10;
+    //            if (chmax(best_avg_score, avg_score)) {
+    //                dump(best_avg_score);
+    //                best_intercept = intercept;
+    //                best_slope = slope;
+    //                best_trial = num_trial;
+    //            }
 
-                if (chmax(best_avg_score, avg_score)) {
-                    dump(best_avg_score);
-                    best_intercept = intercept;
-                    best_slope = slope;
-                    best_trial = num_trial;
-                }
+    //        }
+    //    }
+    //}
 
-            }
-        }
-    }
-
-    Quantizer quantizer(params->bit_rate, best_intercept, best_slope);
+    Quantizer quantizer(params->bit_rate, params->intercept, params->slope);
 
     auto temperature = create_temperature(input, egrid, quantizer);
     judge->set_temperature(temperature);
 
-    auto estimate = predict(*judge, input, egrid, quantizer, temperature, best_trial);
+    auto estimate = predict(*judge, input, egrid, quantizer, temperature, params->num_trial);
     judge->answer(estimate);
 
     return judge->get_metrics();
@@ -1270,12 +1328,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     JudgePtr judge;
 
-    if (true) {
+    if (false) {
         judge = std::make_shared<ServerJudge>();
     }
     else if(true) {
-        std::string input_file("../../tools_win/in/0008.txt");
-        std::string output_file("../../tools_win/out/0008.txt");
+        std::string input_file("../../tools_win/in/0001.txt");
+        std::string output_file("../../tools_win/out/0001.txt");
         judge = std::make_shared<FileJudge>(input_file, output_file);
     }
     else {
